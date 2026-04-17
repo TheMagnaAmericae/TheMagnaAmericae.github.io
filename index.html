@@ -34,8 +34,8 @@
             <option value="normal">Normal (Geopolítico)</option>
             <option value="heatmap-gdp">Mapa de Calor: PIB</option>
             <option value="heatmap-inflation">Mapa de Calor: Inflación</option>
-            <option value="inequality">Mapa de Desigualdad</option>
-            <option value="core-periphery">Teoría Centro-Periferia</option>
+            <option value="inequality">Mapa de Desarrollo (IDH)</option>
+            <option value="structural-inequality">Desigualdad Estructural (Centro-Periferia)</option>
         </select>
         <div id="map-mode-description" style="font-size:10px; color:var(--text-muted); padding:8px; background:rgba(0,0,0,0.2); border-left:2px solid var(--cyan); margin-bottom:15px; line-height:1.3;">
             Visualización estándar: División política regional y principales nodos de integración urbana.
@@ -67,7 +67,7 @@
             <div class="indicator"></div>
         </div>
         <div class="toggle-btn" data-target="res" onclick="toggleLayer(this)">
-            <span>Recursos Naturales</span>
+            <span>Recursos Naturales en Explotación</span>
             <div class="indicator"></div>
         </div>
         <div class="toggle-btn" data-target="infra" onclick="toggleLayer(this)">
@@ -75,7 +75,7 @@
             <div class="indicator"></div>
         </div>
         <div class="toggle-btn" data-target="flows" onclick="toggleLayer(this)">
-            <span>Flujos Comerciales</span>
+            <span>Comercio e Integración</span>
             <div class="indicator"></div>
         </div>
         <div class="toggle-btn" data-target="tech" onclick="toggleLayer(this)">

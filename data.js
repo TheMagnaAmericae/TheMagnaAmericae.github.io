@@ -123,17 +123,26 @@ const layerData = {
         { type: 'wind', lat: -45.0, lon: -68.0, name: "Energía Eólica (Patagonia)" }
     ],
     infra: [
-        { type: 'port', lat: -23.96, lon: -46.33, name: "Puerto de Santos (Principal)" },
-        { type: 'port', lat: -12.05, lon: -77.15, name: "Puerto del Callao" },
-        { type: 'port', lat: -34.60, lon: -58.35, name: "Puerto de Buenos Aires" },
-        // Corredor bioceánico hipotético (línea de tren/carretera)
-        { type: 'corridor', p1: { lat: -23.96, lon: -46.33 }, p2: { lat: -18.47, lon: -70.31 }, name: "Corredor Bioceánico Santos-Arica" }
+        { type: 'port', lat: -23.96, lon: -46.33, name: "Puerto de Santos (Principal)", phase: 1 },
+        { type: 'port', lat: -12.05, lon: -77.15, name: "Puerto del Callao", phase: 1 },
+        { type: 'port', lat: -34.60, lon: -58.35, name: "Puerto de Buenos Aires", phase: 1 },
+        { type: 'port', lat: 19.17, lon: -96.13, name: "Puerto de Veracruz", phase: 1 },
+        { type: 'port', lat: 9.35, lon: -79.90, name: "Hub Colón (Panamá)", phase: 1 },
+        
+        // Corredores Fase 2
+        { type: 'corridor', p1: { lat: -23.96, lon: -46.33 }, p2: { lat: -18.47, lon: -70.31 }, name: "Corredor Bioceánico Atlántico-Pacífico", phase: 2 },
+        { type: 'corridor', p1: { lat: 10.48, lon: -66.88 }, p2: { lat: -15.78, lon: -47.93 }, name: "Gaseoducto Sur: Orinoco-Brasilia", phase: 2 },
+        
+        // Redes Fase 3
+        { type: 'corridor', p1: { lat: 19.43, lon: -99.13 }, p2: { lat: -34.60, lon: -58.38 }, name: "Red de Fibra Óptica Continental (Backbone)", phase: 3 }
     ],
     flows: [
-        { p1: { lat: -15.0, lon: -55.0 }, p2: { lat: 10.0, lon: -10.0 }, name: "Exportación de Soja a China" },
-        { p1: { lat: -22.0, lon: -69.0 }, p2: { lat: 15.0, lon: -120.0 }, name: "Exportación Minerales al Mundo" },
-        { p1: { lat: -3.0, lon: -60.0 }, p2: { lat: -23.96, lon: -46.33 }, name: "Flujos Internos (Amazonía → Puertos)" },
-        { p1: { lat: -18.0, lon: -68.0 }, p2: { lat: -12.05, lon: -77.15 }, name: "Flujos Internos (Andes → Callao)" }
+        { p1: { lat: -23.55, lon: -46.63 }, p2: { lat: -34.60, lon: -58.38 }, name: "Eje Mercosur: São Paulo - BA", type: 'industrial', volume: 45000, desc: "Manufacturas y automotriz" },
+        { p1: { lat: 19.43, lon: -99.13 }, p2: { lat: 8.98, lon: -79.51 }, name: "Eje Mesoamericano: CDMX - Panamá", type: 'tech', volume: 28000, desc: "Servicios financieros y software" },
+        { p1: { lat: -33.45, lon: -70.67 }, p2: { lat: -12.05, lon: -77.04 }, name: "Eje Andino: Santiago - Lima", type: 'primario', volume: 32000, desc: "Minería y agroindustria" },
+        { p1: { lat: 4.71, lon: -74.07 }, p2: { lat: -0.22, lon: -78.51 }, name: "Conexión Norte: Bogotá - Quito", type: 'industrial', volume: 15000, desc: "Bienes de consumo" },
+        { p1: { lat: -15.78, lon: -47.93 }, p2: { lat: -19.04, lon: -65.26 }, name: "Corredor Energético: Brasil - Bolivia", type: 'primario', volume: 12000, desc: "Gas natural y energía" },
+        { p1: { lat: 10.48, lon: -66.88 }, p2: { lat: 18.48, lon: -69.90 }, name: "Eje Caribe: Caracas - Santo Domingo", type: 'primario', volume: 8000, desc: "Petróleo y derivados" }
     ],
     industria: [
         { lat: 25.68, lon: -100.31, name: "Polo Industrial Monterrey (Nuevo León)", type: "Automotriz/Aeroespacial" },

@@ -138,12 +138,22 @@ let totalGDP_B = 0;
 let totalPop = 0;
 let weightedUnempSum = 0;
 
+// --- ESTADO GLOBAL DE SIMULACIÓN ---
+let currentMultipliers = {
+    gdp: 1.0,
+    unemp: 1.0,
+    fdi: 1.0,
+    inflation: 1.0,
+    gini: 0
+};
+
 // --- CÁLCULO DE ÍNDICE DE INFLUENCIA GLOBAL (0-100) ---
 function calculateInfluenceIndex(c) {
-    // 1. PIB Normalizado (Base: Brasil ~2450B como 1.0)
-    const nGDP = Math.min(c.gdpRaw / 2500, 1);
+    // Usar valores simulados para el índice de poder
+    const simGDP = c.gdpRaw * currentMultipliers.gdp;
+    const nGDP = Math.min(simGDP / 2500, 1);
     
-    // 2. Población Normalizada (Base: Brasil ~214M como 1.0)
+    // 2. Población Normalizada
     const nPop = Math.min(c.population / 220, 1);
     
     // 3. Recursos Estratégicos (Litio, Petróleo, Agua, Renovables)
@@ -214,46 +224,58 @@ function updateSim() {
     const scenario = uiEls.scenario ? uiEls.scenario.value : 'realist';
     const phase = uiEls.phase ? uiEls.phase.value : 'phase1';
 
-    let gdpMultiplier = 1.0;
-    let unempMultiplier = 1.0;
-    let giniAdjustment = 0;
+    // Resetear multiplicadores
+    currentMultipliers = { gdp: 1.0, unemp: 1.0, fdi: 1.0, inflation: 1.0, gini: 0 };
     let influenceBase = 68;
 
-    // Escenarios Dinámicos (Teoría de Integración y Mercado Común)
+    // Escenarios Dinámicos
     if (scenario === 'optimist') { 
-        // Simulación: Eliminación de aranceles + Mercado Común
-        gdpMultiplier *= 1.35; 
-        unempMultiplier *= 0.65; 
-        giniAdjustment = -0.05; // La integración reduce desigualdad regional
-        influenceBase += 15; 
+        currentMultipliers.gdp *= 1.40; 
+        currentMultipliers.unemp *= 0.60; 
+        currentMultipliers.fdi *= 1.80;
+        currentMultipliers.inflation *= 0.85;
+        currentMultipliers.gini = -0.06;
+        influenceBase += 20; 
     }
     if (scenario === 'crisis') { 
-        gdpMultiplier *= 0.75; 
-        unempMultiplier *= 1.5; 
-        influenceBase -= 25; 
+        currentMultipliers.gdp *= 0.70; 
+        currentMultipliers.unemp *= 1.60; 
+        currentMultipliers.fdi *= 0.30;
+        currentMultipliers.inflation *= 1.40;
+        currentMultipliers.gini = 0.05;
+        influenceBase -= 30; 
     }
 
-    // Fases Temporales (Especialización Productiva)
-    if (phase === 'phase2') { gdpMultiplier *= 1.2; influenceBase += 10; }
-    if (phase === 'phase3') { gdpMultiplier *= 1.5; influenceBase += 30; }
+    // Fases Temporales (Impacto acumulativo)
+    if (phase === 'phase2') { 
+        currentMultipliers.gdp *= 1.25; 
+        currentMultipliers.fdi *= 1.30;
+        influenceBase += 10; 
+    }
+    if (phase === 'phase3') { 
+        currentMultipliers.gdp *= 1.60; 
+        currentMultipliers.fdi *= 2.0;
+        currentMultipliers.unemp *= 0.80;
+        influenceBase += 35; 
+    }
 
     let gdpTotal = 0;
     let popTotal = 0;
     let unempWeighted = 0;
 
     Object.values(LATAM_COUNTRIES).forEach(c => {
-        const countryGDP = c.gdpRaw * gdpMultiplier;
+        const countryGDP = c.gdpRaw * currentMultipliers.gdp;
         gdpTotal += countryGDP;
         const pop = c.population * 1e6;
         popTotal += pop;
-        unempWeighted += (c.unempRaw * unempMultiplier) * pop;
+        unempWeighted += (c.unempRaw * currentMultipliers.unemp) * pop;
     });
 
     const gdpBillones = gdpTotal / 1000;
     const perCapita = (gdpTotal * 1e9) / (popTotal / 1e6);
     const unemp = unempWeighted / popTotal;
     
-    const unionInfluence = Math.min(influenceBase + (gdpBillones * 2.5), 100);
+    const unionInfluence = Math.min(influenceBase + (gdpBillones * 3.0), 100);
 
     uiEls.gdpVal.innerText = '$' + gdpBillones.toFixed(2) + ' Billones';
     uiEls.pibCapitaVal.innerText = '$' + Math.round(perCapita).toLocaleString('es') + ' USD';
@@ -261,7 +283,39 @@ function updateSim() {
     uiEls.infVal.innerText = Math.round(unionInfluence) + '/100';
 
     updateResourceBars();
+    updateTimelineVisuals();
     updateRanking();
+}
+
+function updateTimelineVisuals() {
+    const phase = uiEls.phase ? uiEls.phase.value : 'phase1';
+    const phaseNum = parseInt(phase.replace('phase', ''));
+
+    // 1. Filtrar Infraestructura por Fase
+    d3.selectAll(".layer-infra").style("visibility", d => (d.phase && d.phase <= phaseNum) ? "visible" : "hidden");
+
+    // 2. Escalar Peso Industrial (Simula crecimiento de polos)
+    d3.selectAll(".layer-industria")
+        .transition().duration(600)
+        .attr("width", 10 + (phaseNum - 1) * 5)
+        .attr("height", 10 + (phaseNum - 1) * 5)
+        .attr("x", d => {
+            const [x, y] = projection([d.lon, d.lat]);
+            return x - (10 + (phaseNum - 1) * 5) / 2;
+        })
+        .attr("y", d => {
+            const [x, y] = projection([d.lon, d.lat]);
+            return y - (10 + (phaseNum - 1) * 5) / 2;
+        });
+
+    // 3. Intensidad de Comercio (Simula densidad de flujos)
+    d3.selectAll(".layer-flows")
+        .transition().duration(600)
+        .attr("stroke-width", d => {
+            const base = Math.max(2, Math.sqrt(d.volume) / 40);
+            return base * (1 + (phaseNum - 1) * 0.4);
+        })
+        .attr("stroke-opacity", 0.4 + (phaseNum * 0.15));
 }
 
 function updateResourceBars() {
@@ -309,7 +363,11 @@ function getAllDataAt(lon, lat, radius = 0.8) {
         tech: layerData.tech.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius),
         res: layerData.res.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius),
         industria: layerData.industria.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius),
-        strategic: layerData.strategic.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius)
+        strategic: layerData.strategic.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius),
+        flows: layerData.flows.filter(d => 
+            Math.hypot(d.p1.lon - lon, d.p1.lat - lat) < radius || 
+            Math.hypot(d.p2.lon - lon, d.p2.lat - lat) < radius
+        )
     };
     return data;
 }
@@ -478,7 +536,7 @@ d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(d
     // Capa Infraestructura (Puertos y Corredores)
     layersGroup.selectAll(".layer-infra-port")
         .data(layerData.infra.filter(d => d.type === 'port')).enter().append("rect")
-        .attr("class", "layer-infra")
+        .attr("class", "layer-infra layer-infra-port")
         .attr("x", d => { d.coords = projection([d.lon, d.lat]); return d.coords[0] - 4; })
         .attr("y", d => d.coords[1] - 4)
         .attr("width", 8).attr("height", 8)
@@ -489,18 +547,18 @@ d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(d
 
     layersGroup.selectAll(".layer-infra-corridor")
         .data(layerData.infra.filter(d => d.type === 'corridor')).enter().append("line")
-        .attr("class", "layer-infra")
+        .attr("class", "layer-infra layer-infra-corridor")
         .attr("x1", d => { d.p1_proj = projection([d.p1.lon, d.p1.lat]); return d.p1_proj[0]; })
         .attr("y1", d => d.p1_proj[1])
         .attr("x2", d => { d.p2_proj = projection([d.p2.lon, d.p2.lat]); return d.p2_proj[0]; })
         .attr("y2", d => d.p2_proj[1])
-        .attr("stroke", "#aaa")
-        .attr("stroke-width", 3)
-        .attr("stroke-dasharray", "5,5")
-        .on("mouseover", (e, d) => showSimpleTooltip(e, d.name, "Corredor Bioceánico"))
+        .attr("stroke", d => d.phase === 3 ? "var(--cyan)" : "#aaa")
+        .attr("stroke-width", d => d.phase === 3 ? 4 : 3)
+        .attr("stroke-dasharray", d => d.phase === 3 ? "none" : "5,5")
+        .on("mouseover", (e, d) => showSimpleTooltip(e, d.name, `Eje de Infraestructura (Fase ${d.phase})`))
         .on("mouseout", hideTooltip);
 
-    // Capa Flujos Económicos
+    // Capa Flujos Económicos (Comercio e Integración)
     layersGroup.selectAll(".layer-flows-arrow")
         .data(layerData.flows).enter().append("line")
         .attr("class", "layer-flows")
@@ -508,10 +566,31 @@ d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(d
         .attr("y1", d => d.p1_proj[1])
         .attr("x2", d => { d.p2_proj = projection([d.p2.lon, d.p2.lat]); return d.p2_proj[0]; })
         .attr("y2", d => d.p2_proj[1])
-        .attr("stroke", "#ff00ff")
-        .attr("stroke-width", 2)
+        .attr("stroke", d => {
+            if (d.type === 'industrial') return '#00ff88';
+            if (d.type === 'tech') return '#00e5ff';
+            if (d.type === 'primario') return '#ffcc00';
+            return '#fff';
+        })
+        .attr("stroke-width", d => Math.max(2, Math.sqrt(d.volume) / 40))
+        .attr("stroke-opacity", 0.7)
         .attr("marker-end", "url(#arrow)")
-        .on("mouseover", (e, d) => showSimpleTooltip(e, d.name, "Flujo Económico"))
+        .on("mouseover", (e, d) => {
+            const scenario = document.getElementById('sim-scenario').value;
+            const multiplier = scenario === 'optimist' ? 1.6 : (scenario === 'crisis' ? 0.3 : 1);
+            const vol = (d.volume * multiplier).toFixed(0);
+            const impact = scenario === 'optimist' ? 
+                '<span style="color:var(--neon-green)">Arancel 0%: Mercado Común Activo</span>' : 
+                'Relaciones comerciales estándar';
+            
+            const html = `
+                <div style="font-size:11px; margin-bottom:4px; color:var(--cyan)">${d.name}</div>
+                <div class="tt-row"><span>Tipo:</span> <span class="tt-val">${d.type.toUpperCase()}</span></div>
+                <div class="tt-row"><span>Volumen:</span> <span class="tt-val">$${vol}M USD</span></div>
+                <div style="font-size:9px; margin-top:5px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">${impact}</div>
+            `;
+            showSimpleTooltip(e, "INTEGRACIÓN COMERCIAL", html);
+        })
         .on("mouseout", hideTooltip);
 
     // Capa Zonas Especiales (Bonus)
@@ -581,13 +660,19 @@ d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(d
 let currentTooltipRect = null;
 
 function getCorePeripheryLevel(c) {
-    // Criterios: PIB per cápita, Gini, nivel industrial (sector secundario)
+    // Criterios: PIB per cápita, Coeficiente de Gini y Nivel Industrial (% Sector Secundario)
     const pc = c.gdpCapitaRaw;
-    const industrial = c.sec ? c.sec[1] : 0;
+    const gini = c.gini;
+    const industry = c.sec ? c.sec[1] : 0;
     
-    if (pc > 15000 && industrial > 25) return 'core'; // Núcleo
-    if (pc > 7000 || industrial > 20) return 'semi'; // Semiperiferia
-    return 'periphery'; // Periferia
+    // Núcleo (Core): Alto ingreso Y (Baja desigualdad O Potencia Industrial)
+    if (pc > 15000 && (gini < 0.43 || industry > 28)) return 'core'; 
+    
+    // Semiperiferia (Transición): Ingreso medio O desarrollo industrial moderado
+    if (pc > 8500 || industry > 20 || gini < 0.45) return 'semi'; 
+    
+    // Periferia: Bajos ingresos y baja industrialización
+    return 'periphery'; 
 }
 
 // --- TOOLTIP UNIFICADO ---
@@ -601,6 +686,11 @@ function showUniversalTooltip(e, lon, lat, fallbackTitle, fallbackSubtitle) {
     
     if (country) {
         const inf = calculateInfluenceIndex(country);
+        const simGDP = (country.gdpRaw * currentMultipliers.gdp).toFixed(1);
+        const simPC = Math.round(country.gdpCapitaRaw * currentMultipliers.gdp);
+        const simInf = (parseFloat(country.inflation) * currentMultipliers.inflation).toFixed(1);
+        const simUnemp = Math.max(1.1, country.unempRaw * currentMultipliers.unemp).toFixed(1);
+
         html += `
             <div class="tt-header">${country.name.toUpperCase()} <span style="float:right; color:var(--accent-orange)">${inf}/100</span></div>
             <div style="font-size:9px; color:var(--text-muted); margin-bottom:8px; border-bottom:1px solid rgba(0,229,255,0.2); padding-bottom:4px;">
@@ -609,12 +699,11 @@ function showUniversalTooltip(e, lon, lat, fallbackTitle, fallbackSubtitle) {
             
             <div class="tt-grid">
                 <div class="tt-col">
-                    <div class="tt-sec-title">MACROECONOMÍA</div>
-                    <div class="tt-row"><span>PIB:</span> <span class="tt-val">$${country.gdpRaw}B</span></div>
-                    <div class="tt-row"><span>Per Cápita:</span> <span class="tt-val">$${country.gdpCapitaRaw.toLocaleString()}</span></div>
-                    <div class="tt-row"><span>Crecimiento:</span> <span class="tt-val" style="color:${country.growth >=0 ? 'var(--neon-green)' : 'var(--accent-red)'}">${country.growth}%</span></div>
-                    <div class="tt-row"><span>Inflación:</span> <span class="tt-val">${country.inflation}</span></div>
-                    <div class="tt-row"><span>Balanza Com.:</span> <span class="tt-val">${country.tradeBal}%</span></div>
+                    <div class="tt-sec-title">MACROECONOMÍA (SIM)</div>
+                    <div class="tt-row"><span>PIB:</span> <span class="tt-val" style="color:var(--accent-orange)">$${simGDP}B</span></div>
+                    <div class="tt-row"><span>Per Cápita:</span> <span class="tt-val">$${simPC.toLocaleString()}</span></div>
+                    <div class="tt-row"><span>Inflación:</span> <span class="tt-val" style="color:#ff5555">${simInf}%</span></div>
+                    <div class="tt-row"><span>Desempleo:</span> <span class="tt-val">${simUnemp}%</span></div>
                 </div>
                 <div class="tt-col">
                     <div class="tt-sec-title">DEMOGRAFÍA</div>
@@ -688,6 +777,9 @@ function showUniversalTooltip(e, lon, lat, fallbackTitle, fallbackSubtitle) {
     }
     if (activeTargets.includes('strategic') && extraData.strategic.length > 0) {
         html += `<div class="tt-section"><div class="tt-sec-title" style="color:var(--cyan)">ZONAS ESTRATÉGICAS</div>${extraData.strategic.map(d => `• ${d.name}`).join('<br>')}</div>`;
+    }
+    if (activeTargets.includes('flows') && extraData.flows.length > 0) {
+        html += `<div class="tt-section"><div class="tt-sec-title" style="color:var(--neon-green)">EJES DE INTEGRACIÓN</div>${extraData.flows.map(d => `• ${d.name} (${d.type})`).join('<br>')}</div>`;
     }
 
     tooltip.html(html);
@@ -815,7 +907,7 @@ function changeMapMode(mode) {
         'heatmap-gdp': 'Mapa de Calor (PIB): Representa la concentración de riqueza por volumen económico absoluto en Billones USD.',
         'heatmap-inflation': 'Mapa de Riesgo (Inflación): Identifica la estabilidad de precios; tonos cálidos indican mayor riesgo monetario.',
         'inequality': 'Mapa de Desarrollo: Clasificación por IDH (Índice de Desarrollo Humano) - Verde (Alto), Amarillo (Medio), Rojo (Bajo).',
-        'core-periphery': 'Teoría Centro-Periferia: Clasificación estructural basada en el valor agregado industrial y PIB per cápita.'
+        'structural-inequality': 'Desigualdad Estructural: Clasificación en Núcleo (Verde), Semiperiferia (Amarillo) y Periferia (Rojo) según PIB pc, Gini e Industria.'
     };
     if (descEl) descEl.innerText = descriptions[mode] || '';
 
@@ -837,7 +929,7 @@ function changeMapMode(mode) {
                 d3.select(this).classed(`dev-${devLevel}`, true);
             }
         });
-    } else if (mode === "core-periphery") {
+    } else if (mode === "structural-inequality") {
         d3.selectAll(".country.latam").each(function (d) {
             const countryId = Number(d.id);
             if (LATAM_COUNTRIES[countryId]) {
