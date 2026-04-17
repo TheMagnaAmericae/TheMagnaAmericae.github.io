@@ -99,6 +99,8 @@ function showComparison() {
         unemp: (c2.unempRaw * currentMultipliers.unemp).toFixed(1)
     };
 
+    const gdpDiff = Math.abs((c1.gdpRaw * currentMultipliers.gdp) - (c2.gdpRaw * currentMultipliers.gdp)).toFixed(1);
+
     container.innerHTML = `
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:11px;">
             <div style="border-right:1px solid rgba(0,229,255,0.2); padding-right:5px;">
@@ -116,7 +118,7 @@ function showComparison() {
         </div>
         <div style="margin-top:10px; font-size:9px; color:#aaa; font-style:italic;">* Valores proyectados por escenario.</div>
         <div style="margin-top:10px; font-size:10px; color:var(--neon-green); text-align:center; border-top:1px dashed var(--cyan); padding-top:10px;">
-            DIF. PIB: $${Math.abs(s1.gdp - s2.gdp).toFixed(1)}B USD
+            DIF. PIB: $${gdpDiff}B USD
         </div>
     `;
 }

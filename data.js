@@ -27,6 +27,18 @@ const LATAM_COUNTRIES = {
     858: { name: 'Uruguay', region: 'sur', capital: 'Montevideo', lat: -34.90, lon: -56.19, gdp: '89B USD', gdpRaw: 89, gdpCapita: '25430 USD', gdpCapitaRaw: 25430, inflation: '5.5%', unemp: '7.8%', unempRaw: 7.8, status: 'Validado', source: 'BCU', devLevel: 'high', population: 3.5, gini: 0.40, palma: 1.5, hdi: 0.830, poverty: 8 }
 };
 
+// --- SINCRONIZACIÓN CON API BANCO MUNDIAL (OPCIONAL/MOCK) ---
+async function fetchWorldBankData() {
+    console.log("Iniciando sincronización con Banco Mundial...");
+    try {
+        // En un entorno real, aquí irían los fetch correspondientes
+        // Por ahora, simulamos una carga exitosa para no bloquear la app
+        return new Promise(resolve => setTimeout(resolve, 500));
+    } catch (e) {
+        console.warn("Error en API, usando datos locales", e);
+    }
+}
+
 // --- DATOS EXTENDIDOS: demografía, sectores, recursos, infraestructura ---
 // growth=crecimiento%PIB | tradeBal=balanza comercial %PIB | urban=% urbanización
 // density=hab/km² | sec=[%primario,%secundario,%terciario] | exports=top 3
