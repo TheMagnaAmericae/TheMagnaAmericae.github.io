@@ -170,7 +170,14 @@
         </div>
 
         <div id="dynamic-ranking" style="margin-top:25px;">
-            <h3>TOP 5 REGIONES</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="margin:0;">TOP 5 REGIONES</h3>
+                <select id="rank-metric" onchange="updateRanking()" style="background:rgba(0,0,0,0.5); color:var(--cyan); border:1px solid rgba(0,229,255,0.3); font-size:9px; padding:2px; cursor:pointer;">
+                    <option value="gdp">PIB TOTAL</option>
+                    <option value="influence">INFLUENCIA</option>
+                    <option value="resources">RECURSOS</option>
+                </select>
+            </div>
             <div id="ranking-container" style="font-size:10px;"></div>
         </div>
 

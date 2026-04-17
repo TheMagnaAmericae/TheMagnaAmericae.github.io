@@ -86,23 +86,37 @@ function showComparison() {
     document.getElementById('compare-stats').style.display = 'block';
     
     const container = document.getElementById('compare-container');
+    
+    // Valores simulados
+    const s1 = {
+        gdp: (c1.gdpRaw * currentMultipliers.gdp).toFixed(1),
+        inf: (parseFloat(c1.inflation) * currentMultipliers.inflation).toFixed(1),
+        unemp: (c1.unempRaw * currentMultipliers.unemp).toFixed(1)
+    };
+    const s2 = {
+        gdp: (c2.gdpRaw * currentMultipliers.gdp).toFixed(1),
+        inf: (parseFloat(c2.inflation) * currentMultipliers.inflation).toFixed(1),
+        unemp: (c2.unempRaw * currentMultipliers.unemp).toFixed(1)
+    };
+
     container.innerHTML = `
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:11px;">
             <div style="border-right:1px solid rgba(0,229,255,0.2); padding-right:5px;">
                 <strong style="color:var(--cyan);">${c1.name.toUpperCase()}</strong><br>
-                <span style="color:var(--text-muted);">PIB:</span> <span style="color:#ffcc00">${c1.gdp}</span><br>
-                <span style="color:var(--text-muted);">INF:</span> <span style="color:#ff5555">${c1.inflation}</span><br>
-                <span style="color:var(--text-muted);">DES:</span> <span style="color:#ffaa00">${c1.unemp}</span>
+                <span style="color:var(--text-muted);">PIB:</span> <span style="color:#ffcc00">$${s1.gdp}B</span><br>
+                <span style="color:var(--text-muted);">INF:</span> <span style="color:#ff5555">${s1.inf}%</span><br>
+                <span style="color:var(--text-muted);">DES:</span> <span style="color:#ffaa00">${s1.unemp}%</span>
             </div>
             <div>
                 <strong style="color:var(--cyan);">${c2.name.toUpperCase()}</strong><br>
-                <span style="color:var(--text-muted);">PIB:</span> <span style="color:#ffcc00">${c2.gdp}</span><br>
-                <span style="color:var(--text-muted);">INF:</span> <span style="color:#ff5555">${c2.inflation}</span><br>
-                <span style="color:var(--text-muted);">DES:</span> <span style="color:#ffaa00">${c2.unemp}</span>
+                <span style="color:var(--text-muted);">PIB:</span> <span style="color:#ffcc00">$${s2.gdp}B</span><br>
+                <span style="color:var(--text-muted);">INF:</span> <span style="color:#ff5555">${s2.inf}%</span><br>
+                <span style="color:var(--text-muted);">DES:</span> <span style="color:#ffaa00">${s2.unemp}%</span>
             </div>
         </div>
-        <div style="margin-top:15px; font-size:10px; color:var(--neon-green); text-align:center; border-top:1px dashed var(--cyan); padding-top:10px;">
-            DIFERENCIA PIB: $${Math.abs(c1.gdpRaw - c2.gdpRaw).toFixed(1)} Mil Millones USD
+        <div style="margin-top:10px; font-size:9px; color:#aaa; font-style:italic;">* Valores proyectados por escenario.</div>
+        <div style="margin-top:10px; font-size:10px; color:var(--neon-green); text-align:center; border-top:1px dashed var(--cyan); padding-top:10px;">
+            DIF. PIB: $${Math.abs(s1.gdp - s2.gdp).toFixed(1)}B USD
         </div>
     `;
 }
@@ -206,18 +220,36 @@ const uiEls = {
 
 function updateRanking() {
     const container = document.getElementById('ranking-container');
+    const metric = document.getElementById('rank-metric')?.value || 'gdp';
     if (!container) return;
 
-    const countries = Object.values(LATAM_COUNTRIES)
-        .sort((a, b) => b.gdpRaw - a.gdpRaw)
-        .slice(0, 5);
+    const countries = Object.values(LATAM_COUNTRIES).map(c => ({
+        ...c,
+        influence: calculateInfluenceIndex(c),
+        resScore: (c.lithium*0.4 + c.oil*0.3 + c.water*0.2 + c.renew*0.1),
+        simGdp: c.gdpRaw * currentMultipliers.gdp
+    }));
 
-    container.innerHTML = countries.map((c, i) => `
-        <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid rgba(0,229,255,0.1);">
-            <span>${i+1}. ${c.name}</span>
-            <span style="color:var(--cyan)">$${c.gdpRaw}B</span>
-        </div>
-    `).join('');
+    countries.sort((a, b) => {
+        if (metric === 'gdp') return b.simGdp - a.simGdp;
+        if (metric === 'influence') return b.influence - a.influence;
+        if (metric === 'resources') return b.resScore - a.resScore;
+        return 0;
+    });
+
+    container.innerHTML = countries.slice(0, 5).map((c, i) => {
+        let val = '';
+        if (metric === 'gdp') val = `$${c.simGdp.toFixed(1)}B`;
+        if (metric === 'influence') val = `${c.influence}/100`;
+        if (metric === 'resources') val = c.resScore > 10 ? 'CRÍTICO' : 'ALTO';
+        
+        return `
+            <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid rgba(0,229,255,0.1);">
+                <span>${i+1}. ${c.name}</span>
+                <span style="color:var(--cyan)">${val}</span>
+            </div>
+        `;
+    }).join('');
 }
 
 function updateSim() {
