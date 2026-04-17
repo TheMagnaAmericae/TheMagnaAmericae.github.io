@@ -21,40 +21,72 @@
         <h2>LATINOAMÉRICA</h2>
         <p>Monitor de Integración y Desarrollo</p>
 
-        <h3>SIMULACIÓN DE UNIÓN</h3>
-        <div class="slider-wrapper">
-            <div class="slider-label">
-                <span>Integración Económica</span>
-                <span id="lbl-integration">50%</span>
-            </div>
-            <input type="range" id="slider-integration" min="0" max="100" value="50" oninput="updateSim()">
+        <!-- BUSCADOR -->
+        <div style="margin-bottom: 15px;">
+            <input type="text" id="search-input" placeholder="Buscar país o ciudad..." 
+                   style="width:100%; padding:8px; background:rgba(0,0,0,0.3); border:1px solid var(--cyan); color:white; font-size:11px; border-radius:4px;"
+                   oninput="handleSearch(this.value)">
         </div>
 
-        <div class="slider-wrapper">
-            <div class="slider-label">
-                <span>Inversión en I+D</span>
-                <span id="lbl-rd">5.0%</span>
-            </div>
-            <input type="range" id="slider-rd" min="1" max="15" step="0.5" value="5" oninput="updateSim()">
+        <h3>MODO DE MAPA</h3>
+        <select id="map-mode" onchange="changeMapMode(this.value)" 
+                style="width:100%; padding:8px; background:var(--panel-bg); border:1px solid var(--cyan); color:var(--cyan); font-size:11px; margin-bottom:15px; cursor:pointer;">
+            <option value="normal">Normal (Geopolítico)</option>
+            <option value="heatmap-gdp">Mapa de Calor: PIB</option>
+            <option value="heatmap-inflation">Mapa de Calor: Inflación</option>
+            <option value="inequality">Mapa de Desigualdad</option>
+            <option value="core-periphery">Teoría Centro-Periferia</option>
+        </select>
+        <div id="map-mode-description" style="font-size:10px; color:var(--text-muted); padding:8px; background:rgba(0,0,0,0.2); border-left:2px solid var(--cyan); margin-bottom:15px; line-height:1.3;">
+            Visualización estándar: División política regional y principales nodos de integración urbana.
         </div>
+
+        <h3>ESCENARIO</h3>
+        <select id="sim-scenario" onchange="updateSim()" 
+                style="width:100%; padding:8px; background:var(--panel-bg); border:1px solid var(--accent-orange); color:var(--accent-orange); font-size:11px; margin-bottom:15px; cursor:pointer;">
+            <option value="realist">Realista (Base)</option>
+            <option value="optimist">Optimista (Integración Total)</option>
+            <option value="crisis">Crisis (Fragmentación)</option>
+        </select>
+
+        <h3>LÍNEA DE TIEMPO</h3>
+        <select id="sim-phase" onchange="updateSim()" 
+                style="width:100%; padding:8px; background:var(--panel-bg); border:1px solid var(--neon-green); color:var(--neon-green); font-size:11px; margin-bottom:15px; cursor:pointer;">
+            <option value="phase1">Fase 1: Integración (2025-2035)</option>
+            <option value="phase2">Fase 2: Industrialización (2035-2050)</option>
+            <option value="phase3">Fase 3: Potencia Global (2050+)</option>
+        </select>
 
         <h3>CAPAS ECONÓMICAS</h3>
         <div class="toggle-btn" data-target="fdi" onclick="toggleLayer(this)">
-            <span>Inversión China (FDI)</span>
+            <span>Inversión Extranjera</span>
             <div class="indicator"></div>
         </div>
-        <div class="toggle-btn" data-target="tech" onclick="toggleLayer(this)">
-            <span>Zonas Francas</span>
+        <div class="toggle-btn" data-target="industria" onclick="toggleLayer(this)">
+            <span>Polos Industriales</span>
             <div class="indicator"></div>
         </div>
         <div class="toggle-btn" data-target="res" onclick="toggleLayer(this)">
-            <span>Recursos Estratégicos</span>
+            <span>Recursos Naturales</span>
             <div class="indicator"></div>
         </div>
-        <div class="toggle-btn" data-target="inequality" onclick="toggleInequality(this)">
-            <span>Mapa de Desigualdad</span>
+        <div class="toggle-btn" data-target="infra" onclick="toggleLayer(this)">
+            <span>Infraestructura</span>
             <div class="indicator"></div>
         </div>
+        <div class="toggle-btn" data-target="flows" onclick="toggleLayer(this)">
+            <span>Flujos Comerciales</span>
+            <div class="indicator"></div>
+        </div>
+        <div class="toggle-btn" data-target="tech" onclick="toggleLayer(this)">
+            <span>Tecnología / I+D</span>
+            <div class="indicator"></div>
+        </div>
+        <div class="toggle-btn" data-target="strategic" onclick="toggleLayer(this)">
+            <span>Zonas Estratégicas</span>
+            <div class="indicator"></div>
+        </div>
+
 
         <h3>REGIONES</h3>
         <details>
@@ -70,9 +102,13 @@
             <div id="list-sur"></div>
         </details>
 
-        <div class="legend-box">
-            <div class="legend-item"><div class="legend-color lc-capital"></div> Capital Regional</div>
-            <div class="legend-item"><div class="legend-color lc-key"></div> Nodo Global</div>
+        <div class="legend-box" id="legend">
+            <div class="legend-item" onclick="highlightKeyNodes()" style="cursor:pointer;">
+                <div class="legend-color lc-key"></div> Nodo Global (Click)
+            </div>
+            <div class="legend-item" onclick="highlightCapitals()" style="cursor:pointer;">
+                <div class="legend-color lc-capital"></div> Capital Regional (Click)
+            </div>
         </div>
     </aside>
 
@@ -84,65 +120,67 @@
     </main>
 
     <!-- Panel Derecho: Métricas Proyectadas -->
-    <aside class="col-side col-right">
-        <h2>ESTADÍSTICAS 2025</h2>
-        
-        <div class="stat-grid">
-            <div class="stat-card">
-                <div class="stat-title">PIB TOTAL (PROYECTADO)</div>
-                <div class="stat-value" id="val-gdp">$0.00T</div>
+    <aside class="col-side col-right" id="right-panel">
+        <div id="union-stats">
+            <h2>UNIÓN LATAM · 24 PAÍSES</h2>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-title">PIB TOTAL (USD)</div>
+                    <div class="stat-value" id="val-gdp">$0.00 Billones</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">PIB PER CÁPITA (PROM.)</div>
+                    <div class="stat-value" id="val-pibcapita">$0 USD</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">DESEMPLEO AGREGADO</div>
+                    <div class="stat-value" id="val-unemp">0%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-title">INFLUENCIA GLOBAL</div>
+                    <div class="stat-value" id="val-influence">0/100</div>
+                </div>
             </div>
-            <div class="stat-card">
-                <div class="stat-title">PIB PER CÁPITA AVG</div>
-                <div class="stat-value" id="val-pibcapita">$0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">DESEMPLEO AGREGADO</div>
-                <div class="stat-value" id="val-unemp">0%</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">INFLUENCIA GLOBAL</div>
-                <div class="stat-value" id="val-influence">0/100</div>
-            </div>
+
+
+        </div>
+
+        <div id="compare-stats" style="display:none;">
+            <h2>COMPARATIVA</h2>
+            <div id="compare-container"></div>
+            <button onclick="closeComparison()" style="width:100%; margin-top:15px; padding:8px; background:var(--accent-red); border:none; color:white; cursor:pointer; font-size:10px;">CERRAR COMPARATIVA</button>
         </div>
 
         <h3>RECURSOS ESTRATÉGICOS</h3>
         <div class="res-bar-container">
-            <div class="res-label"><span>LITIO</span> <span>ALTA</span></div>
-            <div class="res-bg"><div class="res-fill fill-li" style="width: 85%;"></div></div>
+            <div class="res-label"><span>LITIO</span> <span id="lbl-li">...</span></div>
+            <div class="res-bg"><div class="res-fill fill-li" id="bar-li" style="width: 0%;"></div></div>
         </div>
         <div class="res-bar-container">
-            <div class="res-label"><span>COBRE</span> <span>MODERADA</span></div>
-            <div class="res-bg"><div class="res-fill fill-cu" style="width: 60%;"></div></div>
+            <div class="res-label"><span>PETRÓLEO</span> <span id="lbl-oil">...</span></div>
+            <div class="res-bg"><div class="res-fill fill-oil" id="bar-oil" style="width: 0%;"></div></div>
         </div>
         <div class="res-bar-container">
-            <div class="res-label"><span>PETRÓLEO</span> <span>ALTA</span></div>
-            <div class="res-bg"><div class="res-fill fill-oil" style="width: 75%;"></div></div>
+            <div class="res-label"><span>AGUA DULCE</span> <span id="lbl-water">...</span></div>
+            <div class="res-bg"><div class="res-fill fill-cu" id="bar-water" style="width: 0%;"></div></div>
         </div>
         <div class="res-bar-container">
-            <div class="res-label"><span>BIODIVERSIDAD</span> <span>CRÍTICA</span></div>
-            <div class="res-bg"><div class="res-fill fill-bio" style="width: 95%;"></div></div>
+            <div class="res-label"><span>BIODIVERSIDAD</span> <span id="lbl-renew">...</span></div>
+            <div class="res-bg"><div class="res-fill fill-bio" id="bar-renew" style="width: 0%;"></div></div>
         </div>
 
-        <div class="system-info">
-            ESTADO DEL SISTEMA: <span style="color:var(--neon-green)">OPERACIONAL</span>
-            <br>
-            ACTUALIZACIÓN: <span id="current-time"></span>
+        <div id="dynamic-ranking" style="margin-top:25px;">
+            <h3>TOP 5 REGIONES</h3>
+            <div id="ranking-container" style="font-size:10px;"></div>
         </div>
+
+
     </aside>
 
     <!-- Carga de Datos y Lógica -->
     <script src="data.js"></script>
     <script src="main.js"></script>
-    <script>
-        // Actualizar reloj del sistema
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('current-time').innerText = now.toLocaleTimeString();
-        }
-        setInterval(updateTime, 1000);
-        updateTime();
-    </script>
+
 </body>
 
 </html>

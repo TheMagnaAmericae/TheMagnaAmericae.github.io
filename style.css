@@ -8,6 +8,10 @@
     --accent-orange: #ffaa00;
     --accent-blue: #4169e1;
     --accent-tav: #00e5b0;
+    --accent-industry: #00ff88;
+    --accent-infra: #aaa;
+    --accent-flows: #ff00ff;
+    --accent-bonus: #ffff00;
     --text-main: #e0e8f0;
     --text-muted: #8fa3b5;
     --border-glow: 0 0 10px rgba(0, 229, 255, 0.2);
@@ -138,6 +142,11 @@ p {
 .toggle-btn.active[data-target="res"] .indicator {
     background: var(--accent-orange);
     box-shadow: 0 0 10px var(--accent-orange);
+}
+
+.toggle-btn.active[data-target="industria"] .indicator {
+    background: var(--accent-industry);
+    box-shadow: 0 0 10px var(--accent-industry);
 }
 
 .toggle-btn.active[data-target="defensa"] .indicator {
@@ -459,6 +468,7 @@ input[type="range"] {
 .layer-fdi,
 .layer-tech,
 .layer-res,
+.layer-industria,
 .layer-defensa,
 .layer-tav,
 .layer-strategic,
@@ -555,6 +565,40 @@ input[type="range"] {
     max-width: 150px;
 }
 
+.tt-section {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(0, 229, 255, 0.3);
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.tt-sec-title {
+    font-size: 8px;
+    color: var(--neon-green);
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+    opacity: 0.8;
+}
+
+.tt-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 4px;
+}
+
+.tt-col {
+    display: flex;
+    flex-direction: column;
+}
+
+.tt-section span {
+    font-weight: 600;
+}
+
 /* Scrollbars */
 ::-webkit-scrollbar {
     width: 4px;
@@ -570,4 +614,18 @@ input[type="range"] {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--cyan);
+}
+
+.country.highlight-compare {
+    fill: var(--accent-purple) !important;
+    stroke: #fff !important;
+    stroke-width: 2px !important;
+    filter: drop-shadow(0 0 10px var(--accent-purple));
+}
+
+.key-point.highlight-node {
+    fill: #fff !important;
+    stroke: var(--cyan) !important;
+    stroke-width: 3px !important;
+    filter: drop-shadow(0 0 15px #fff);
 }

@@ -1,75 +1,290 @@
-// Se han extraído LATAM_COUNTRIES, keyNodes y layerData a data.js
-
-// Renderizar las listas dinámicamente en el panel izquierdo
-function renderSidebarLists() {
-    const categories = { 'caribe': 'list-caribe', 'nortecentro': 'list-nortecentro', 'sur': 'list-sur' };
-    Object.keys(categories).forEach(regKey => {
-        const container = document.getElementById(categories[regKey]);
-        const filtered = Object.entries(LATAM_COUNTRIES).filter(c => c[1].region === regKey);
-        container.innerHTML = filtered.map(([id, c]) => `
-                    <div class="region-item" onmouseover="handleSidebarHover(event, ${id})" onmousemove="moveTooltip(event)" onmouseout="handleSidebarOut()">
-                        <span>${c.name}</span>
-                        <span style="color:var(--cyan); font-size:9px; opacity:0.6;">${c.capital}</span>
-                    </div>
-                `).join('');
+// --- INICIALIZACIÓN ---
+document.addEventListener('DOMContentLoaded', () => {
+    fetchWorldBankData().then(() => {
+        // Recargar listas tras actualizar con API
+        renderSidebarLists();
+        updateSim();
     });
-}
-renderSidebarLists();
+});
 
-// --- LÓGICA DE SIMULACIÓN DINÁMICA ---
+// --- FUNCIÓN PARA CENTRAR MAPA ---
+function centerMapOn(coords, zoomScale = 600) {
+    const [lon, lat] = coords;
+    const width = d3.select(".col-center").node().clientWidth;
+    const height = d3.select(".col-center").node().clientHeight;
+
+    projection.center([lon, lat]).scale(zoomScale);
+    
+    // Actualizar todos los elementos (Reutilizando la lógica de resize)
+    window.dispatchEvent(new Event('resize'));
+}
+
+// --- BÚSQUEDA INTELIGENTE REFINADA ---
+function handleSearch(query) {
+    if (!query || query.length < 2) {
+        resetHighlight();
+        hideTooltip();
+        // Resetear mapa al centro original
+        centerMapOn([-70, -15], 400);
+        return;
+    }
+    const q = query.toLowerCase();
+    
+    const countryEntry = Object.entries(LATAM_COUNTRIES).find(([id, c]) => 
+        c.name.toLowerCase().includes(q) || c.capital.toLowerCase().includes(q)
+    );
+    
+    if (countryEntry) {
+        const id = Number(countryEntry[0]);
+        const c = countryEntry[1];
+        highlightCountry(id);
+        centerMapOn([c.lon, c.lat], 500);
+        showCountryTooltip({pageX: window.innerWidth/2, pageY: window.innerHeight/2}, c);
+    }
+
+    const node = keyNodes.find(n => n.name.toLowerCase().includes(q));
+    if (node) {
+        centerMapOn([node.lon, node.lat], 800);
+        d3.selectAll(".key-point").classed("highlight-node", false);
+        d3.selectAll(".key-point")
+            .filter(d => d.name === node.name)
+            .classed("highlight-node", true);
+    }
+}
+
+// --- LÓGICA DE COMPARACIÓN REFINADA ---
+let selectedForCompare = [];
+
+function handleCountryClick(id) {
+    id = Number(id); // Asegurar que sea número
+    
+    if (selectedForCompare.includes(id)) {
+        selectedForCompare = selectedForCompare.filter(i => i !== id);
+    } else {
+        if (selectedForCompare.length >= 2) selectedForCompare.shift();
+        selectedForCompare.push(id);
+    }
+
+    // Resaltado visual inmediato
+    d3.selectAll(".country.latam").classed("highlight-compare", false);
+    selectedForCompare.forEach(sid => {
+        d3.select(`#country-${sid}`).classed("highlight-compare", true);
+    });
+
+    if (selectedForCompare.length === 2) {
+        showComparison();
+    } else {
+        closeComparison(false); // No limpiar el array si solo hay uno
+    }
+}
+
+function showComparison() {
+    const c1 = LATAM_COUNTRIES[selectedForCompare[0]];
+    const c2 = LATAM_COUNTRIES[selectedForCompare[1]];
+    
+    document.getElementById('union-stats').style.display = 'none';
+    document.getElementById('compare-stats').style.display = 'block';
+    
+    const container = document.getElementById('compare-container');
+    container.innerHTML = `
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:11px;">
+            <div style="border-right:1px solid rgba(0,229,255,0.2); padding-right:5px;">
+                <strong style="color:var(--cyan);">${c1.name.toUpperCase()}</strong><br>
+                <span style="color:var(--text-muted);">PIB:</span> <span style="color:#ffcc00">${c1.gdp}</span><br>
+                <span style="color:var(--text-muted);">INF:</span> <span style="color:#ff5555">${c1.inflation}</span><br>
+                <span style="color:var(--text-muted);">DES:</span> <span style="color:#ffaa00">${c1.unemp}</span>
+            </div>
+            <div>
+                <strong style="color:var(--cyan);">${c2.name.toUpperCase()}</strong><br>
+                <span style="color:var(--text-muted);">PIB:</span> <span style="color:#ffcc00">${c2.gdp}</span><br>
+                <span style="color:var(--text-muted);">INF:</span> <span style="color:#ff5555">${c2.inflation}</span><br>
+                <span style="color:var(--text-muted);">DES:</span> <span style="color:#ffaa00">${c2.unemp}</span>
+            </div>
+        </div>
+        <div style="margin-top:15px; font-size:10px; color:var(--neon-green); text-align:center; border-top:1px dashed var(--cyan); padding-top:10px;">
+            DIFERENCIA PIB: $${Math.abs(c1.gdpRaw - c2.gdpRaw).toFixed(1)} Mil Millones USD
+        </div>
+    `;
+}
+
+function closeComparison(clearArray = true) {
+    if (clearArray) selectedForCompare = [];
+    document.getElementById('union-stats').style.display = 'block';
+    document.getElementById('compare-stats').style.display = 'none';
+    if (clearArray) d3.selectAll(".country.latam").classed("highlight-compare", false);
+}
+
+
+
+
+// --- INTERACTIVIDAD DE LEYENDA ---
+function highlightKeyNodes() {
+    d3.selectAll(".key-point")
+        .transition().duration(300).attr("r", 15)
+        .transition().duration(300).attr("r", d => d.tier === 1 ? 6.5 : 4.5);
+}
+
+function highlightCapitals() {
+    d3.selectAll(".capital-dot")
+        .transition().duration(300).attr("r", 8).style("fill", "#fff")
+        .transition().duration(300).attr("r", 2.5).style("fill", "#00ffcc");
+}
+
+// --- REEMPLAZO DE LA CARGA DEL MAPA (Fragmento necesario) ---
+// Nota: Para mantener el main.js limpio, inyectaré el evento click en la función d3.json existente.
+
+// --- CÁLCULO AGREGADO DE LA UNIÓN (24 PAÍSES) ---
 let totalGDP_B = 0;
 let totalPop = 0;
 let weightedUnempSum = 0;
 
-Object.values(LATAM_COUNTRIES).forEach(c => {
-    const gdpVal = c.gdpRaw;
-    const capitaVal = c.gdpCapitaRaw;
-    const unempVal = c.unempRaw;
+// --- CÁLCULO DE ÍNDICE DE INFLUENCIA GLOBAL (0-100) ---
+function calculateInfluenceIndex(c) {
+    // 1. PIB Normalizado (Base: Brasil ~2450B como 1.0)
+    const nGDP = Math.min(c.gdpRaw / 2500, 1);
+    
+    // 2. Población Normalizada (Base: Brasil ~214M como 1.0)
+    const nPop = Math.min(c.population / 220, 1);
+    
+    // 3. Recursos Estratégicos (Litio, Petróleo, Agua, Renovables)
+    // Escala: Litio (max ~21), Petróleo (max ~3), Agua (max ~12), Renew (max 10)
+    const resScore = (
+        (Math.min(c.lithium / 21, 1) * 0.4) + 
+        (Math.min(c.oil / 3, 1) * 0.3) + 
+        (Math.min(c.water / 12, 1) * 0.2) + 
+        (Math.min(c.renew / 10, 1) * 0.1)
+    );
+    const nRes = Math.min(resScore, 1);
+    
+    // 4. Tecnología e Innovación (Internet + IDH + Escolaridad)
+    const nTech = (
+        (c.internet / 100 * 0.5) + 
+        (c.hdi * 0.3) + 
+        (Math.min(c.edu / 12, 1) * 0.2)
+    );
+    
+    // 5. Infraestructura (LPI + Puerto + Energía)
+    // LPI (max ~3.3), Puerto (max 10), Energía (max 170GW)
+    const infraScore = (
+        (Math.min(c.lpi / 3.5, 1) * 0.4) + 
+        (Math.min(c.port / 10, 1) * 0.3) + 
+        (Math.min(c.energy / 180, 1) * 0.3)
+    );
+    const nInfra = Math.min(infraScore, 1);
 
-    totalGDP_B += gdpVal;
-    const pop = (gdpVal * 1e9) / capitaVal;
-    totalPop += pop;
-    weightedUnempSum += unempVal * pop;
-});
+    // FÓRMULA FINAL MODELO DE PODER GLOBAL
+    const powerScore = (
+        (nGDP * 0.30) + 
+        (nPop * 0.20) + 
+        (nRes * 0.20) + 
+        (nTech * 0.15) + 
+        (nInfra * 0.15)
+    );
 
-const baseGDP = totalGDP_B / 1000; // Convertido a Trillones USD
-const unionPopulation = totalPop;
-const baseUnemp = weightedUnempSum / totalPop; // Promedio ponderado real
-const baseInfluence = 68;
+    return Math.round(powerScore * 100);
+}
 
-// Caché de elementos DOM para optimización de CPU
+// Caché de elementos DOM para las estadísticas y selectores
 const uiEls = {
-    intSlider: document.getElementById('slider-integration'),
-    rdSlider: document.getElementById('slider-rd'),
-    intLbl: document.getElementById('lbl-integration'),
-    rdLbl: document.getElementById('lbl-rd'),
     gdpVal: document.getElementById('val-gdp'),
     pibCapitaVal: document.getElementById('val-pibcapita'),
     unempVal: document.getElementById('val-unemp'),
-    infVal: document.getElementById('val-influence')
+    infVal: document.getElementById('val-influence'),
+    scenario: document.getElementById('sim-scenario'),
+    phase: document.getElementById('sim-phase')
 };
 
+function updateRanking() {
+    const container = document.getElementById('ranking-container');
+    if (!container) return;
+
+    const countries = Object.values(LATAM_COUNTRIES)
+        .sort((a, b) => b.gdpRaw - a.gdpRaw)
+        .slice(0, 5);
+
+    container.innerHTML = countries.map((c, i) => `
+        <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid rgba(0,229,255,0.1);">
+            <span>${i+1}. ${c.name}</span>
+            <span style="color:var(--cyan)">$${c.gdpRaw}B</span>
+        </div>
+    `).join('');
+}
+
 function updateSim() {
-    const intVal = parseFloat(uiEls.intSlider.value);
-    const rdVal = parseFloat(uiEls.rdSlider.value);
-    uiEls.intLbl.innerText = intVal + '%';
-    uiEls.rdLbl.innerText = rdVal.toFixed(1) + '%';
+    const scenario = uiEls.scenario ? uiEls.scenario.value : 'realist';
+    const phase = uiEls.phase ? uiEls.phase.value : 'phase1';
 
-    const factorInt = (intVal - 50) / 50;
+    let gdpMultiplier = 1.0;
+    let unempMultiplier = 1.0;
+    let giniAdjustment = 0;
+    let influenceBase = 68;
 
-    let newGDP = baseGDP + (factorInt * 1.5) + ((rdVal - 5) * 0.1);
-    let newUnemp = baseUnemp - (factorInt * 1.5) - ((rdVal - 5) * 0.05);
-    if (newUnemp < 1.5) newUnemp = 1.5;
+    // Escenarios Dinámicos (Teoría de Integración y Mercado Común)
+    if (scenario === 'optimist') { 
+        // Simulación: Eliminación de aranceles + Mercado Común
+        gdpMultiplier *= 1.35; 
+        unempMultiplier *= 0.65; 
+        giniAdjustment = -0.05; // La integración reduce desigualdad regional
+        influenceBase += 15; 
+    }
+    if (scenario === 'crisis') { 
+        gdpMultiplier *= 0.75; 
+        unempMultiplier *= 1.5; 
+        influenceBase -= 25; 
+    }
 
-    let newInfluence = baseInfluence + (factorInt * 20) + ((rdVal - 5) * 2.2);
-    if (newInfluence > 100) newInfluence = 100;
-    if (newInfluence < 0) newInfluence = 0;
+    // Fases Temporales (Especialización Productiva)
+    if (phase === 'phase2') { gdpMultiplier *= 1.2; influenceBase += 10; }
+    if (phase === 'phase3') { gdpMultiplier *= 1.5; influenceBase += 30; }
 
-    uiEls.gdpVal.innerText = '$' + newGDP.toFixed(2) + 'T';
-    let perCapita = (newGDP * 1000000000000) / unionPopulation;
-    uiEls.pibCapitaVal.innerText = '$' + Math.round(perCapita).toLocaleString();
-    uiEls.unempVal.innerText = newUnemp.toFixed(1) + '%';
-    uiEls.infVal.innerText = Math.round(newInfluence) + '/100';
+    let gdpTotal = 0;
+    let popTotal = 0;
+    let unempWeighted = 0;
+
+    Object.values(LATAM_COUNTRIES).forEach(c => {
+        const countryGDP = c.gdpRaw * gdpMultiplier;
+        gdpTotal += countryGDP;
+        const pop = c.population * 1e6;
+        popTotal += pop;
+        unempWeighted += (c.unempRaw * unempMultiplier) * pop;
+    });
+
+    const gdpBillones = gdpTotal / 1000;
+    const perCapita = (gdpTotal * 1e9) / (popTotal / 1e6);
+    const unemp = unempWeighted / popTotal;
+    
+    const unionInfluence = Math.min(influenceBase + (gdpBillones * 2.5), 100);
+
+    uiEls.gdpVal.innerText = '$' + gdpBillones.toFixed(2) + ' Billones';
+    uiEls.pibCapitaVal.innerText = '$' + Math.round(perCapita).toLocaleString('es') + ' USD';
+    uiEls.unempVal.innerText = Math.max(unemp, 1.1).toFixed(1) + '%';
+    uiEls.infVal.innerText = Math.round(unionInfluence) + '/100';
+
+    updateResourceBars();
+    updateRanking();
+}
+
+function updateResourceBars() {
+    let lithium = 0, oil = 0, water = 0, renew = 0;
+    Object.values(LATAM_COUNTRIES).forEach(c => {
+        lithium += (c.lithium || 0);
+        oil += (c.oil || 0);
+        water += (c.water || 0);
+        renew += (c.renew || 0);
+    });
+
+    // Normalización para las barras de la unión (Valores máximos teóricos agregados)
+    const setBar = (id, val, max, labelId, labelText) => {
+        const el = document.getElementById(id);
+        const lbl = document.getElementById(labelId);
+        if (el) el.style.width = Math.min((val / max) * 100, 100) + '%';
+        if (lbl) lbl.innerText = labelText;
+    };
+
+    setBar('bar-li', lithium, 50, 'lbl-li', lithium.toFixed(1) + ' Mt');
+    setBar('bar-oil', oil, 5, 'lbl-oil', oil.toFixed(2) + ' Mbd');
+    setBar('bar-water', water, 30, 'lbl-water', water.toFixed(1) + '% Global');
+    setBar('bar-renew', renew, 150, 'lbl-renew', 'POTENCIAL ALTO');
 }
 
 // --- MAPA D3.JS INTERACTIVO ---
@@ -85,6 +300,19 @@ const projection = d3.geoMercator()
     ]);
 
 const path = d3.geoPath().projection(projection);
+
+// --- GESTOR DE DATOS UNIFICADOS ---
+// Esta función busca todos los elementos (FDI, Industria, etc.) cerca de una coordenada
+function getAllDataAt(lon, lat, radius = 0.8) {
+    const data = {
+        fdi: layerData.fdi.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius),
+        tech: layerData.tech.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius),
+        res: layerData.res.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius),
+        industria: layerData.industria.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius),
+        strategic: layerData.strategic.filter(d => Math.hypot(d.lon - lon, d.lat - lat) < radius)
+    };
+    return data;
+}
 
 // Arrow marker for flows
 svg.append("defs").append("marker")
@@ -112,13 +340,38 @@ let mapCache = {
     tech: null,
     res: null,
     defensa: null,
-    tav: null,
     strategic: null,
     infra: null,
     flows: null,
+    industria: null,
     bonus: null
 };
 
+// --- RENDERIZADO DE LISTAS ---
+function renderSidebarLists() {
+    const categories = { 'caribe': 'list-caribe', 'nortecentro': 'list-nortecentro', 'sur': 'list-sur' };
+    Object.keys(categories).forEach(regKey => {
+        const container = document.getElementById(categories[regKey]);
+        if (!container) return;
+        const filtered = Object.entries(LATAM_COUNTRIES).filter(c => c[1].region === regKey);
+        container.innerHTML = filtered.map(([id, c]) => `
+                    <div class="region-item" 
+                         onclick="handleCountryClick(${id})"
+                         onmouseover="handleSidebarHover(event, ${id})" 
+                         onmousemove="moveTooltip(event)" 
+                         onmouseout="handleSidebarOut()">
+                        <span>${c.name}</span>
+                        <span style="color:var(--cyan); font-size:9px; opacity:0.6;">${c.capital}</span>
+                    </div>
+                `).join('');
+    });
+}
+
+// --- RÁPIDA DEFINICIÓN DE highlight-compare en style.css si no existe ---
+// (Lo haré mediante d3.select por ahora para no saturar el flujo de archivos, 
+// pero lo ideal es añadirlo a style.css)
+
+// --- REEMPLAZO DEL BLOQUE DE CARGA DEL MAPA ---
 d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(data => {
     const countries = topojson.feature(data, data.objects.countries);
 
@@ -128,25 +381,17 @@ d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(d
         .enter().append("path")
         .attr("d", path)
         .attr("class", d => latamIds.includes(Number(d.id)) ? "country latam" : "country")
-        .attr("id", d => "country-" + Number(d.id));
+        .attr("id", d => "country-" + Number(d.id))
+        .on("click", (e, d) => {
+            const id = Number(d.id);
+            if (latamIds.includes(id)) handleCountryClick(id);
+        });
 
     // 1. Dibujar Capas (Invisibles inicialmente)
     const layersGroup = g.append("g").attr("id", "dynamic-layers");
 
     // Población de caché para optimización
     mapCache.paths = g.selectAll("path");
-
-    // Capa TAV (Líneas)
-    layersGroup.selectAll(".layer-tav-line")
-        .data(layerData.tav).enter().append("line")
-        .attr("class", "layer-tav")
-        .attr("x1", d => { d.p1 = projection([d[0].lon, d[0].lat]); return d.p1[0]; })
-        .attr("y1", d => d.p1[1])
-        .attr("x2", d => { d.p2 = projection([d[1].lon, d[1].lat]); return d.p2[0]; })
-        .attr("y2", d => d.p2[1])
-        .attr("stroke", "var(--accent-tav)")
-        .attr("stroke-width", 2)
-        .attr("stroke-dasharray", "4,4");
 
     // Capa Inversión Extranjera (FDI)
     layersGroup.selectAll(".layer-fdi-node")
@@ -183,6 +428,19 @@ d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(d
         .attr("fill", "var(--accent-orange)")
         .attr("stroke", "#fff").attr("stroke-width", 0.5)
         .on("mouseover", (e, d) => showSimpleTooltip(e, d.name, "Complejo Extractivo"))
+        .on("mouseout", hideTooltip);
+
+    // Capa Industria (Engranajes/Rectángulos Industriales)
+    layersGroup.selectAll(".layer-industria-node")
+        .data(layerData.industria).enter().append("rect")
+        .attr("class", "layer-industria")
+        .attr("x", d => { d.coords = projection([d.lon, d.lat]); return d.coords[0] - 5; })
+        .attr("y", d => d.coords[1] - 5)
+        .attr("width", 10).attr("height", 10)
+        .attr("fill", "var(--accent-industry)")
+        .attr("stroke", "#000").attr("stroke-width", 0.5)
+        .attr("rx", 1)
+        .on("mouseover", (e, d) => showSimpleTooltip(e, d.name, `Polo Industrial: <span style="color:var(--accent-industry)">${d.type}</span>`))
         .on("mouseout", hideTooltip);
 
     // Capa Defensa (Rombos)
@@ -311,16 +569,137 @@ d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(d
     mapCache.strategic = layersGroup.selectAll(".layer-strategic");
     mapCache.infra = layersGroup.selectAll(".layer-infra");
     mapCache.flows = layersGroup.selectAll(".layer-flows");
+    mapCache.industria = layersGroup.selectAll(".layer-industria");
     mapCache.bonus = layersGroup.selectAll(".layer-bonus");
+
+    // Ejecutar un primer cálculo de posiciones para evitar saltos
+    window.dispatchEvent(new Event('resize'));
 }).catch(err => console.error("Error al cargar el mapa:", err));
 
 // --- FUNCIONES INTERACTIVAS ---
 
 let currentTooltipRect = null;
 
+function getCorePeripheryLevel(c) {
+    // Criterios: PIB per cápita, Gini, nivel industrial (sector secundario)
+    const pc = c.gdpCapitaRaw;
+    const industrial = c.sec ? c.sec[1] : 0;
+    
+    if (pc > 15000 && industrial > 25) return 'core'; // Núcleo
+    if (pc > 7000 || industrial > 20) return 'semi'; // Semiperiferia
+    return 'periphery'; // Periferia
+}
+
+// --- TOOLTIP UNIFICADO ---
+function showUniversalTooltip(e, lon, lat, fallbackTitle, fallbackSubtitle) {
+    const country = Object.values(LATAM_COUNTRIES).find(c => Math.hypot(c.lon - lon, c.lat - lat) < 0.8);
+    const node = keyNodes.find(n => Math.hypot(n.lon - lon, n.lat - lat) < 0.8);
+    const extraData = getAllDataAt(lon, lat);
+    const activeTargets = Array.from(document.querySelectorAll('.toggle-btn.active')).map(b => b.dataset.target);
+
+    let html = '';
+    
+    if (country) {
+        const inf = calculateInfluenceIndex(country);
+        html += `
+            <div class="tt-header">${country.name.toUpperCase()} <span style="float:right; color:var(--accent-orange)">${inf}/100</span></div>
+            <div style="font-size:9px; color:var(--text-muted); margin-bottom:8px; border-bottom:1px solid rgba(0,229,255,0.2); padding-bottom:4px;">
+                Capital: <span style="color:var(--cyan)">${country.capital}</span> | Infl. Global
+            </div>
+            
+            <div class="tt-grid">
+                <div class="tt-col">
+                    <div class="tt-sec-title">MACROECONOMÍA</div>
+                    <div class="tt-row"><span>PIB:</span> <span class="tt-val">$${country.gdpRaw}B</span></div>
+                    <div class="tt-row"><span>Per Cápita:</span> <span class="tt-val">$${country.gdpCapitaRaw.toLocaleString()}</span></div>
+                    <div class="tt-row"><span>Crecimiento:</span> <span class="tt-val" style="color:${country.growth >=0 ? 'var(--neon-green)' : 'var(--accent-red)'}">${country.growth}%</span></div>
+                    <div class="tt-row"><span>Inflación:</span> <span class="tt-val">${country.inflation}</span></div>
+                    <div class="tt-row"><span>Balanza Com.:</span> <span class="tt-val">${country.tradeBal}%</span></div>
+                </div>
+                <div class="tt-col">
+                    <div class="tt-sec-title">DEMOGRAFÍA</div>
+                    <div class="tt-row"><span>Población:</span> <span class="tt-val">${country.population}M</span></div>
+                    <div class="tt-row"><span>Densidad:</span> <span class="tt-val">${country.density} h/km²</span></div>
+                    <div class="tt-row"><span>Urbanización:</span> <span class="tt-val">${country.urban}%</span></div>
+                </div>
+            </div>
+
+            <div class="tt-grid">
+                <div class="tt-col">
+                    <div class="tt-sec-title">DESIGUALDAD</div>
+                    <div class="tt-row"><span>Gini:</span> <span class="tt-val">${country.gini}</span></div>
+                    <div class="tt-row"><span>Palma:</span> <span class="tt-val">${country.palma}</span></div>
+                    <div class="tt-row"><span>Pobreza:</span> <span class="tt-val" style="color:var(--accent-orange)">${country.poverty}%</span></div>
+                </div>
+                <div class="tt-col">
+                    <div class="tt-sec-title">DESARROLLO (IDH)</div>
+                    <div class="tt-row"><span>IDH:</span> <span class="tt-val">${country.hdi}</span></div>
+                    <div class="tt-row"><span>Escolaridad:</span> <span class="tt-val">${country.edu} años</span></div>
+                    <div class="tt-row"><span>Internet:</span> <span class="tt-val">${country.internet}%</span></div>
+                </div>
+            </div>
+
+            <div class="tt-section">
+                <div class="tt-sec-title">ESTRUCTURA PRODUCTIVA</div>
+                <div style="font-size:9px; margin-bottom:4px;">
+                    Sectores: <span style="color:#aaa">P:${country.sec[0]}% | S:${country.sec[1]}% | T:${country.sec[2]}%</span>
+                </div>
+                <div class="tt-row"><span>Exports:</span> <span class="tt-val" style="font-size:8.5px; color:var(--cyan)">${country.exports.join(', ')}</span></div>
+                <div class="tt-row"><span>Dep. Commodities:</span> <span class="tt-val">${country.commDep}%</span></div>
+            </div>
+
+            <div class="tt-grid">
+                <div class="tt-col">
+                    <div class="tt-sec-title">RECURSOS</div>
+                    ${country.lithium > 0 ? `<div class="tt-row"><span>Litio:</span> <span class="tt-val">${country.lithium}Mt</span></div>` : ''}
+                    ${country.oil > 0 ? `<div class="tt-row"><span>Petróleo:</span> <span class="tt-val">${country.oil}Mbd</span></div>` : ''}
+                    <div class="tt-row"><span>Agua:</span> <span class="tt-val">${country.water}% glob</span></div>
+                </div>
+                <div class="tt-col">
+                    <div class="tt-sec-title">INFRAESTR.</div>
+                    <div class="tt-row"><span>LPI:</span> <span class="tt-val">${country.lpi}</span></div>
+                    <div class="tt-row"><span>Puerto:</span> <span class="tt-val">${country.port}/10</span></div>
+                    <div class="tt-row"><span>Energía:</span> <span class="tt-val">${country.energy}GW</span></div>
+                </div>
+            </div>
+        `;
+    } else if (node) {
+        html += `
+            <div class="tt-header">${node.name}</div>
+            <div class="tt-row"><span class="tt-label">Rol:</span> <span class="tt-val" style="color:var(--cyan);">${node.role}</span></div>
+            <div class="tt-row"><span class="tt-label">Espec.:</span> <span class="tt-val">${node.spec}</span></div>
+        `;
+    } else {
+        html += `<div class="tt-header">${fallbackTitle || 'Punto de Interés'}</div><div style="color:var(--text-muted); font-size:10px;">${fallbackSubtitle || ''}</div>`;
+    }
+
+    // Agregar Secciones de Capas
+    if (activeTargets.includes('fdi') && extraData.fdi.length > 0) {
+        html += `<div class="tt-section"><div class="tt-sec-title" style="color:var(--accent-red)">INVERSIONES</div>${extraData.fdi.map(d => `• ${d.name}`).join('<br>')}</div>`;
+    }
+    if (activeTargets.includes('industria') && extraData.industria.length > 0) {
+        html += `<div class="tt-section"><div class="tt-sec-title" style="color:var(--accent-industry)">INDUSTRIA</div>${extraData.industria.map(d => `• ${d.name}`).join('<br>')}</div>`;
+    }
+    if (activeTargets.includes('tech') && extraData.tech.length > 0) {
+        html += `<div class="tt-section"><div class="tt-sec-title" style="color:var(--accent-purple)">TECNOLOGÍA / I+D</div>${extraData.tech.map(d => `• ${d.name}`).join('<br>')}</div>`;
+    }
+    if (activeTargets.includes('res') && extraData.res.length > 0) {
+        html += `<div class="tt-section"><div class="tt-sec-title" style="color:var(--accent-orange)">EXTRACCIÓN</div>${extraData.res.map(d => `• ${d.name}`).join('<br>')}</div>`;
+    }
+    if (activeTargets.includes('strategic') && extraData.strategic.length > 0) {
+        html += `<div class="tt-section"><div class="tt-sec-title" style="color:var(--cyan)">ZONAS ESTRATÉGICAS</div>${extraData.strategic.map(d => `• ${d.name}`).join('<br>')}</div>`;
+    }
+
+    tooltip.html(html);
+    tooltip.style("display", "block");
+    currentTooltipRect = tooltip.node().getBoundingClientRect();
+    moveTooltip(e);
+}
+
 function handleSidebarHover(e, id) {
+    const c = LATAM_COUNTRIES[id];
     highlightCountry(id);
-    showCountryTooltip(e, LATAM_COUNTRIES[id]);
+    showUniversalTooltip(e, c.lon, c.lat);
 }
 
 function handleSidebarOut() {
@@ -329,51 +708,74 @@ function handleSidebarOut() {
 }
 
 function showCountryTooltip(e, c) {
-    tooltip.html(`
-                <div class="tt-header">${c.name}</div>
-                <div style="font-size:10px; color:var(--text-muted); margin-bottom:8px; border-bottom:1px solid rgba(0,229,255,0.2); padding-bottom:6px;">Capital: <span style="color:var(--cyan)">${c.capital}</span></div>
-                
-                <div class="tt-row"><span class="tt-label">PIB (2025):</span> <span class="tt-val" style="color:var(--cyan);">${c.gdp}</span></div>
-                <div class="tt-row"><span class="tt-label">PIB Per Cápita:</span> <span class="tt-val">${c.gdpCapita}</span></div>
-                <div class="tt-row"><span class="tt-label">Inflación:</span> <span class="tt-val">${c.inflation}</span></div>
-                <div class="tt-row"><span class="tt-label">Desempleo:</span> <span class="tt-val">${c.unemp}</span></div>
-                
-                <div style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(255, 255, 255, 0.1); font-size:9px; text-transform: uppercase;">
-                    <span style="color:${c.status.includes('Validado') ? '#00ffcc' : 'var(--accent-orange)'}">${c.status}</span> | <span style="color:var(--text-muted)">${c.source}</span>
-                </div>
-            `);
-    tooltip.style("display", "block");
-    currentTooltipRect = tooltip.node().getBoundingClientRect();
-    moveTooltip(e);
+    showUniversalTooltip(e, c.lon, c.lat);
 }
 
 function showNodeTooltip(e, d) {
-    tooltip.html(`
-                <div class="tt-header">${d.name}</div>
-                <div class="tt-row"><span class="tt-label">Rol:</span> <span class="tt-val" style="color:var(--cyan);">${d.role}</span></div>
-                <div class="tt-row"><span class="tt-label">Especialización:</span> <span class="tt-val">${d.spec}</span></div>
-            `);
-    tooltip.style("display", "block");
-    currentTooltipRect = tooltip.node().getBoundingClientRect();
-    moveTooltip(e);
+    showUniversalTooltip(e, d.lon, d.lat);
 }
 
 function showSimpleTooltip(e, title, subtitle) {
-    tooltip.html(`
-                <div class="tt-header" style="font-size:12px; margin-bottom:5px;">${title}</div>
-                <div style="color:var(--text-muted); font-size:10px;">${subtitle}</div>
-            `);
-    tooltip.style("display", "block");
-    currentTooltipRect = tooltip.node().getBoundingClientRect();
-    moveTooltip(e);
+    const d = d3.select(e.target).datum();
+    if (d && d.lat && d.lon) {
+        showUniversalTooltip(e, d.lon, d.lat, title, subtitle);
+    } else {
+        tooltip.html(`
+            <div class="tt-header" style="font-size:12px; margin-bottom:5px;">${title}</div>
+            <div style="color:var(--text-muted); font-size:10px;">${subtitle}</div>
+        `);
+        tooltip.style("display", "block");
+        currentTooltipRect = tooltip.node().getBoundingClientRect();
+        moveTooltip(e);
+    }
 }
 
 function moveTooltip(e) {
     if (!currentTooltipRect) return;
-    let x = e.pageX + 15;
-    let y = e.pageY + 15;
-    if (x + currentTooltipRect.width > window.innerWidth) x = e.pageX - currentTooltipRect.width - 15;
-    if (y + currentTooltipRect.height > window.innerHeight) y = e.pageY - currentTooltipRect.height - 15;
+    
+    const wWidth = window.innerWidth;
+    const wHeight = window.innerHeight;
+    const ttWidth = currentTooltipRect.width;
+    const ttHeight = currentTooltipRect.height;
+
+    // Detectar Sidebar Izquierdo (Ancho: 320px)
+    const sidebarLeft = document.getElementById('col-side');
+    const isLeftClosed = sidebarLeft ? sidebarLeft.classList.contains('sidebar-closed') : true;
+    const leftWidth = isLeftClosed ? 0 : 320;
+
+    // Detectar Panel Derecho (Ancho: 320px)
+    const sidebarRight = document.getElementById('right-panel');
+    const rightWidth = sidebarRight ? 320 : 0; // Por ahora el derecho es fijo
+
+    // Posición ideal: a la derecha y abajo del cursor
+    let x = e.pageX + 20;
+    let y = e.pageY + 20;
+
+    // Lógica de "Choque" Lateral:
+    // Evitar que se salga por la derecha (contra el panel derecho)
+    if (x + ttWidth > wWidth - rightWidth - 10) {
+        x = wWidth - rightWidth - ttWidth - 10;
+    }
+
+    // Si al empujarlo a la izquierda choca con el cursor (mitad derecha de la pantalla libre)
+    if (x < e.pageX + 10 && e.pageX > (wWidth - leftWidth - rightWidth) / 2 + leftWidth) {
+        x = e.pageX - ttWidth - 20;
+    }
+
+    // Choque con borde inferior
+    if (y + ttHeight > wHeight - 10) {
+        y = wHeight - ttHeight - 10;
+    }
+    
+    // Si choca con el cursor abajo
+    if (y < e.pageY + 10 && e.pageY > wHeight / 2) {
+        y = e.pageY - ttHeight - 20;
+    }
+
+    // Asegurar límites finales absolutos (Entre ambos paneles)
+    x = Math.max(leftWidth + 10, Math.min(x, wWidth - rightWidth - ttWidth - 10));
+    y = Math.max(10, Math.min(y, wHeight - ttHeight - 10));
+    
     tooltip.style("left", x + "px").style("top", y + "px");
 }
 
@@ -406,19 +808,72 @@ function toggleSidebar() {
     }, 300);
 }
 
-function toggleInequality(element) {
-    element.classList.toggle('active');
-    const isActive = element.classList.contains('active');
+function changeMapMode(mode) {
+    const descEl = document.getElementById('map-mode-description');
+    const descriptions = {
+        'normal': 'Visualización estándar: División política regional y principales nodos de integración urbana.',
+        'heatmap-gdp': 'Mapa de Calor (PIB): Representa la concentración de riqueza por volumen económico absoluto en Billones USD.',
+        'heatmap-inflation': 'Mapa de Riesgo (Inflación): Identifica la estabilidad de precios; tonos cálidos indican mayor riesgo monetario.',
+        'inequality': 'Mapa de Desarrollo: Clasificación por IDH (Índice de Desarrollo Humano) - Verde (Alto), Amarillo (Medio), Rojo (Bajo).',
+        'core-periphery': 'Teoría Centro-Periferia: Clasificación estructural basada en el valor agregado industrial y PIB per cápita.'
+    };
+    if (descEl) descEl.innerText = descriptions[mode] || '';
 
-    d3.selectAll(".country").each(function (d) {
-        const countryId = Number(d.id);
-        if (LATAM_COUNTRIES[countryId] && isActive) {
-            const devLevel = LATAM_COUNTRIES[countryId].devLevel;
-            d3.select(this).classed(`dev-${devLevel}`, true);
-        } else {
-            d3.select(this).classed("dev-high", false).classed("dev-medium", false).classed("dev-low", false);
-        }
-    });
+    // 1. Limpiar estados previos
+    d3.selectAll(".country")
+        .classed("dev-high", false)
+        .classed("dev-medium", false)
+        .classed("dev-low", false)
+        .transition().duration(500)
+        .style("fill", null);
+
+    if (mode === "normal") return;
+
+    if (mode === "inequality") {
+        d3.selectAll(".country").each(function (d) {
+            const countryId = Number(d.id);
+            if (LATAM_COUNTRIES[countryId]) {
+                const devLevel = LATAM_COUNTRIES[countryId].devLevel;
+                d3.select(this).classed(`dev-${devLevel}`, true);
+            }
+        });
+    } else if (mode === "core-periphery") {
+        d3.selectAll(".country.latam").each(function (d) {
+            const countryId = Number(d.id);
+            if (LATAM_COUNTRIES[countryId]) {
+                const level = getCorePeripheryLevel(LATAM_COUNTRIES[countryId]);
+                let color = "#ff4444"; // Periferia (Rojo)
+                if (level === 'core') color = "#00ff88"; // Núcleo (Verde)
+                if (level === 'semi') color = "#ffcc00"; // Semiperiferia (Amarillo)
+                d3.select(this).transition().duration(500).style("fill", color);
+            }
+        });
+    } else if (mode === "heatmap-gdp") {
+        const values = Object.values(LATAM_COUNTRIES).map(c => c.gdpRaw);
+        const colorScale = d3.scaleSequential(d3.interpolateBlues)
+            .domain([0, d3.max(values)]);
+
+        d3.selectAll(".country.latam").each(function (d) {
+            const countryId = Number(d.id);
+            if (LATAM_COUNTRIES[countryId]) {
+                const val = LATAM_COUNTRIES[countryId].gdpRaw;
+                d3.select(this).transition().duration(500)
+                    .style("fill", colorScale(val));
+            }
+        });
+    } else if (mode === "heatmap-inflation") {
+        const values = Object.values(LATAM_COUNTRIES).map(c => parseFloat(c.inflation));
+        const colorScale = d3.scaleSequential(d3.interpolateYlOrRd).domain([0, 20]);
+
+        d3.selectAll(".country.latam").each(function (d) {
+            const countryId = Number(d.id);
+            if (LATAM_COUNTRIES[countryId]) {
+                const val = parseFloat(LATAM_COUNTRIES[countryId].inflation);
+                d3.select(this).transition().duration(500)
+                    .style("fill", colorScale(val));
+            }
+        });
+    }
 }
 
 // Ajustar mapa en redimensionamiento
@@ -434,43 +889,72 @@ window.addEventListener('resize', () => {
 
         projection.translate([width / 2, height / 2]);
 
-        // Actualizar elementos usando el caché (con null-checks)
+        // Helper para snap — devuelve { pos: [x,y], snapped: boolean }
+        const getSnappedPos = (lon, lat) => {
+            const snapRadius = 0.8;
+            const country = Object.values(LATAM_COUNTRIES).find(c => Math.hypot(c.lon - lon, c.lat - lat) < snapRadius);
+            if (country) return { pos: projection([country.lon, country.lat]), snapped: true };
+            const node = keyNodes.find(n => Math.hypot(n.lon - lon, n.lat - lat) < snapRadius);
+            if (node) return { pos: projection([node.lon, node.lat]), snapped: true };
+            return { pos: projection([lon, lat]), snapped: false };
+        };
+
+        // 1. PUNTOS FIJOS
+        if (mapCache.keys) mapCache.keys.each(function(d) {
+            const [x, y] = projection([d.lon, d.lat]);
+            d3.select(this).attr("cx", x).attr("cy", y);
+        });
+
+        if (mapCache.capitals) mapCache.capitals.each(function(d) {
+            const [x, y] = projection([d[1].lon, d[1].lat]);
+            d3.select(this).attr("cx", x).attr("cy", y);
+        });
+
+        // 2. CAPAS DINÁMICAS
         if (mapCache.paths) mapCache.paths.attr("d", path);
 
-        if (mapCache.capitals) mapCache.capitals
-            .attr("cx", d => projection([d[1].lon, d[1].lat])[0])
-            .attr("cy", d => projection([d[1].lon, d[1].lat])[1]);
+        if (mapCache.fdi) mapCache.fdi.each(function(d) {
+            const { pos: [x, y], snapped } = getSnappedPos(d.lon, d.lat);
+            d3.select(this).attr("cx", x).attr("cy", y)
+                .style("pointer-events", snapped ? "none" : null);
+        });
 
-        if (mapCache.keys) mapCache.keys
-            .attr("cx", d => projection([d.lon, d.lat])[0])
-            .attr("cy", d => projection([d.lon, d.lat])[1]);
+        if (mapCache.tech) mapCache.tech.each(function(d) {
+            const { pos: [x, y], snapped } = getSnappedPos(d.lon, d.lat);
+            d3.select(this).attr("x", x - 4).attr("y", y - 4)
+                .style("pointer-events", snapped ? "none" : null);
+        });
 
-        if (mapCache.fdi) mapCache.fdi
-            .attr("cx", d => projection([d.lon, d.lat])[0])
-            .attr("cy", d => projection([d.lon, d.lat])[1]);
+        if (mapCache.res) mapCache.res.each(function(d) {
+            const { pos: [x, y], snapped } = getSnappedPos(d.lon, d.lat);
+            d3.select(this).attr("points", `${x},${y - 6} ${x - 5},${y + 4} ${x + 5},${y + 4}`)
+                .style("pointer-events", snapped ? "none" : null);
+        });
 
-        if (mapCache.tech) mapCache.tech
-            .attr("x", d => projection([d.lon, d.lat])[0] - 4)
-            .attr("y", d => projection([d.lon, d.lat])[1] - 4);
+        if (mapCache.industria) mapCache.industria.each(function(d) {
+            const { pos: [x, y], snapped } = getSnappedPos(d.lon, d.lat);
+            d3.select(this).attr("x", x - 5).attr("y", y - 5)
+                .style("pointer-events", snapped ? "none" : null);
+        });
 
-        if (mapCache.res) mapCache.res.attr("points", d => { const [x, y] = projection([d.lon, d.lat]); return `${x},${y - 6} ${x - 5},${y + 4} ${x + 5},${y + 4}`; });
-        if (mapCache.defensa) mapCache.defensa.attr("points", d => { const [x, y] = projection([d.lon, d.lat]); return `${x},${y - 5} ${x + 5},${y} ${x},${y + 5} ${x - 5},${y}`; });
+        if (mapCache.defensa) mapCache.defensa.each(function(d) {
+            const { pos: [x, y], snapped } = getSnappedPos(d.lon, d.lat);
+            d3.select(this).attr("points", `${x},${y - 5} ${x + 5},${y} ${x},${y + 5} ${x - 5},${y}`)
+                .style("pointer-events", snapped ? "none" : null);
+        });
 
-        if (mapCache.tav) mapCache.tav
-            .attr("x1", d => projection([d[0].lon, d[0].lat])[0])
-            .attr("y1", d => projection([d[0].lon, d[0].lat])[1])
-            .attr("x2", d => projection([d[1].lon, d[1].lat])[0])
-            .attr("y2", d => projection([d[1].lon, d[1].lat])[1]);
-
-        if (mapCache.strategic) mapCache.strategic
-            .attr("cx", d => projection([d.lon, d.lat])[0])
-            .attr("cy", d => projection([d.lon, d.lat])[1]);
+        if (mapCache.strategic) mapCache.strategic.each(function(d) {
+            const { pos: [x, y], snapped } = getSnappedPos(d.lon, d.lat);
+            d3.select(this).attr("cx", x).attr("cy", y)
+                .style("pointer-events", snapped ? "none" : null);
+        });
 
         if (mapCache.infra) mapCache.infra.each(function (d) {
             const el = d3.select(this);
             if (d.type === 'port') {
-                const coords = projection([d.lon, d.lat]);
-                el.attr("x", coords[0] - 4).attr("y", coords[1] - 4);
+                const { pos: [x, y], snapped } = getSnappedPos(d.lon, d.lat);
+                el.attr("x", x - 4).attr("y", y - 4)
+                  .style("pointer-events", snapped ? "none" : null);
             } else if (d.type === 'corridor') {
                 const p1 = projection([d.p1.lon, d.p1.lat]);
                 const p2 = projection([d.p2.lon, d.p2.lat]);
@@ -479,15 +963,18 @@ window.addEventListener('resize', () => {
             }
         });
 
+        if (mapCache.bonus) mapCache.bonus.each(function(d) {
+            const { pos: [x, y], snapped } = getSnappedPos(d.lon, d.lat);
+            d3.select(this).attr("cx", x).attr("cy", y)
+                .style("pointer-events", snapped ? "none" : null);
+        });
+
+        // 3. LÍNEAS (No se desplazan para mantener conectividad geográfica)
         if (mapCache.flows) mapCache.flows
             .attr("x1", d => projection([d.p1.lon, d.p1.lat])[0])
             .attr("y1", d => projection([d.p1.lon, d.p1.lat])[1])
             .attr("x2", d => projection([d.p2.lon, d.p2.lat])[0])
             .attr("y2", d => projection([d.p2.lon, d.p2.lat])[1]);
-
-        if (mapCache.bonus) mapCache.bonus
-            .attr("cx", d => projection([d.lon, d.lat])[0])
-            .attr("cy", d => projection([d.lon, d.lat])[1]);
     });
 });
 
