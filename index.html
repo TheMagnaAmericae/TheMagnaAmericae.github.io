@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Capitalismo Desarrollista de Estado</title>
+    <!-- Fuentes: Monoespaciadas para el estilo Cyber-Technocratic -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- D3.js y TopoJSON para el mapa -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/topojson@3"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- BOTÓN TOGGLE SIDEBAR -->
+    <button class="sidebar-toggle-btn" onclick="toggleSidebar()">☰</button>
+
+    <!-- PANEL IZQUIERDO: CONTROL DE CAPAS Y REGIONES -->
+    <div class="col-side" id="col-side">
+        <h2>Control de Sistema</h2>
+        <p>Módulo de Visualización Estratégica.</p>
+
+        <h3>Capas Funcionales</h3>
+        <button class="toggle-btn" data-target="fdi" onclick="toggleLayer(this)">
+            <span>[+] Inversión Extranjera Directa</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="tech" onclick="toggleLayer(this)">
+            <span>[+] Zonas Francas Tecnológicas</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="res" onclick="toggleLayer(this)">
+            <span>[+] Nodos de Recursos Estratégicos</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="tav" onclick="toggleLayer(this)">
+            <span>[+] Red TAV (Trenes Alta Velocidad)</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="defensa" onclick="toggleLayer(this)">
+            <span>[+] Complejos Aeroespaciales</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="strategic" onclick="toggleLayer(this)">
+            <span>[+] Recursos Estratégicos Globales</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="infra" onclick="toggleLayer(this)">
+            <span>[+] Infraestructura y Comercio</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="flows" onclick="toggleLayer(this)">
+            <span>[+] Flujos Económicos</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="bonus" onclick="toggleLayer(this)">
+            <span>[+] Zonas Especiales / Conflictos</span>
+            <div class="indicator"></div>
+        </button>
+        <button class="toggle-btn" data-target="inequality" onclick="toggleInequality(this)">
+            <span>[+] Desigualdad Económica (Nivel)</span>
+            <div class="indicator"></div>
+        </button>
+
+        <div class="legend-box">
+            <div style="color: var(--cyan); margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">
+                Simbología</div>
+            <div class="legend-item">
+                <div class="legend-color lc-capital"></div> Capitales Regionales (24 Ex-Países)
+            </div>
+            <div class="legend-item">
+                <div class="legend-color lc-key"></div> Centros Globales / Nodos Clave
+            </div>
+            <div class="legend-item">
+                <div class="legend-color lc-fdi"></div> Inversión Extranjera / Megaproyectos
+            </div>
+            <div class="legend-item">
+                <div class="legend-color lc-tech"></div> Polos Tecnológicos / I+D
+            </div>
+            <div class="legend-item">
+                <div class="legend-color lc-res"></div> Complejos Extractivos
+            </div>
+            <div class="legend-item">
+                <div class="legend-color lc-defensa"></div> Aeroespacial y Defensa
+            </div>
+            <div class="legend-item">
+                <div class="legend-color lc-tav"></div> Línea TAV (Logística Terrestre)
+            </div>
+            <div class="legend-item" style="margin-top: 10px; border-top: 1px solid rgba(0, 229, 255, 0.2); padding-top: 10px;">
+                <div class="legend-color lc-inequality"></div> Desarrollo: Verde (Alto), Amarillo (Medio), Rojo (Bajo)
+            </div>
+        </div>
+
+        <h3>Macro-Regiones</h3>
+        <details>
+            <summary>El Caribe</summary>
+            <div id="list-caribe"></div>
+        </details>
+        <details>
+            <summary>América del Norte y Central</summary>
+            <div id="list-nortecentro"></div>
+        </details>
+        <details open>
+            <summary>América del Sur</summary>
+            <div id="list-sur"></div>
+        </details>
+
+        <h3>Simulación de Políticas</h3>
+        <div class="slider-wrapper">
+            <div class="slider-label"><span>Integración de Mercado</span><span id="lbl-integration">50%</span></div>
+            <input type="range" id="slider-integration" min="0" max="100" value="50" oninput="updateSim()">
+        </div>
+        <div class="slider-wrapper">
+            <div class="slider-label"><span>Inversión I+D (STEM)</span><span id="lbl-rd">5.0%</span></div>
+            <input type="range" id="slider-rd" min="1" max="15" value="5" step="0.1" oninput="updateSim()">
+        </div>
+    </div>
+
+    <!-- PANEL CENTRAL: MAPA INTERACTIVO -->
+    <div class="col-center">
+        <svg id="map-svg"></svg>
+    </div>
+
+    <!-- PANEL DERECHO: MÉTRICAS DE LA UNIÓN -->
+    <div class="col-side col-right">
+        <h2>Métricas de la Unión</h2>
+
+        <div class="system-info">
+            <span style="color: var(--cyan); text-transform: uppercase;">Modelo Económico</span><br>
+            <strong style="color: #fff; font-size: 13px;">Capitalismo Desarrollista de Estado</strong>
+            <div style="margin-top: 8px; color: var(--text-muted);">Inspirado en MITI y Chaebols. 40% de los
+                universitarios graduados en STEM.</div>
+            <span class="currency">⛭ EL SOLAR</span>
+            <div style="font-size: 9px; color: var(--text-muted);">Banco Central de la Unión (Sede: Panamá)</div>
+        </div>
+
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-title">PIB TOTAL</div>
+                <div class="stat-value" id="val-gdp">$6.20T</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">PIB PER CÁPITA</div>
+                <div class="stat-value" id="val-pibcapita">$9,400</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">DESEMPLEO</div>
+                <div class="stat-value" id="val-unemp" style="color: var(--accent-orange);">4.5%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">BALANZA COMERCIAL</div>
+                <div class="stat-value" style="color: var(--cyan);">+12% (Sup)</div>
+            </div>
+        </div>
+
+        <div class="stat-card" style="margin-bottom: 20px;">
+            <div class="stat-title">ÍNDICE DE INFLUENCIA GLOBAL</div>
+            <div class="stat-value" id="val-influence" style="font-size: 24px; color: var(--neon-green);">68/100</div>
+        </div>
+
+        <h3>Reservas Estratégicas</h3>
+        <div class="res-bar-container">
+            <div class="res-label"><span>Litio (Triángulo)</span><span>85% Control Global</span></div>
+            <div class="res-bg">
+                <div class="res-fill fill-li" style="width: 85%;"></div>
+            </div>
+        </div>
+        <div class="res-bar-container">
+            <div class="res-label"><span>Cobre</span><span>55% Control Global</span></div>
+            <div class="res-bg">
+                <div class="res-fill fill-cu" style="width: 55%;"></div>
+            </div>
+        </div>
+        <div class="res-bar-container">
+            <div class="res-label"><span>Petróleo (Presal/Orinoco)</span><span>30% Control Global</span></div>
+            <div class="res-bg">
+                <div class="res-fill fill-oil" style="width: 30%;"></div>
+            </div>
+        </div>
+        <div class="res-bar-container">
+            <div class="res-label"><span>Biodiversidad & Agua</span><span>60% Control Global</span></div>
+            <div class="res-bg">
+                <div class="res-fill fill-bio" style="width: 60%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip global -->
+    <div id="tooltip"></div>
+
+    <!-- BASE DE DATOS EXTERNA -->
+    <script src="data.js"></script>
+
+    <!-- SCRIPT PRINCIPAL -->
+    <script src="main.js"></script>
+</body>
+
+</html>
