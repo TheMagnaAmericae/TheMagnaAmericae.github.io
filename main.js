@@ -306,7 +306,7 @@ function updateSim() {
     });
 
     const gdpBillones = gdpTotal / 1000;
-    const perCapita = (gdpTotal * 1e9) / (popTotal / 1e6);
+    const perCapita = (gdpTotal * 1e9) / popTotal;
     const unemp = unempWeighted / popTotal;
     
     const unionInfluence = Math.min(influenceBase + (gdpBillones * 3.0), 100);
