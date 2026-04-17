@@ -3,199 +3,279 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard - Capitalismo Desarrollista de Estado</title>
-    <!-- Fuentes: Monoespaciadas para el estilo Cyber-Technocratic -->
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600&display=swap" rel="stylesheet">
-    <!-- D3.js y TopoJSON para el mapa -->
+    <title>TheMagnaAmericae - Monitor Económico</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/topojson@3"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #050b10;
+            color: #e0e8f0;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-    <link rel="stylesheet" href="style.css">
+        /* SIDEBAR */
+        #sidebar {
+            width: 280px;
+            background-color: #0a141e;
+            border-right: 1px solid #1e2a38;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        h2 {
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: #378add;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+
+        h3 {
+            font-size: 11px;
+            color: #4a7fa5;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #1e2a38;
+            padding-bottom: 5px;
+        }
+
+        .layer-item {
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            border-radius: 3px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+        }
+
+        .layer-item:hover {
+            background: rgba(55, 138, 221, 0.1);
+            color: #00e5b0;
+        }
+
+        /* CONTENEDOR MAPA */
+        #map-container {
+            flex-grow: 1;
+            position: relative;
+            background: radial-gradient(circle, #0d1b2a 0%, #050b10 100%);
+        }
+
+        /* TOOLTIP ANCLADO */
+        #tooltip {
+            position: absolute;
+            right: 20px;
+            /* Anclado a la derecha */
+            bottom: 20px;
+            /* Anclado abajo */
+            background: rgba(10, 20, 32, 0.95);
+            border: 1px solid #378add;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+            pointer-events: none;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            transition: opacity 0.3s;
+        }
+
+        .country {
+            stroke: #1e2a38;
+            stroke-width: 0.5px;
+            transition: fill 0.3s;
+        }
+
+        .capital-dot {
+            pointer-events: none;
+        }
+    </style>
 </head>
 
 <body>
 
-    <!-- BOTÓN TOGGLE SIDEBAR -->
-    <button class="sidebar-toggle-btn" onclick="toggleSidebar()">☰</button>
+    <div id="sidebar">
+        <h2La gran>Latinoamerica</h2>
 
-    <!-- PANEL IZQUIERDO: CONTROL DE CAPAS Y REGIONES -->
-    <div class="col-side" id="col-side">
-        <h2>Control de Sistema</h2>
-        <p>Módulo de Visualización Estratégica.</p>
+            <h3>CAPAS ECONÓMICAS</h3>
+            <div class="layer-item"><span style="color:#378add; margin-right:8px;">●</span> INVERSION CHINA</div>
+            <div class="layer-item"><span style="color:#a855f7; margin-right:8px;">●</span> ZONAS FRANCAS</div>
 
-        <h3>Capas Funcionales</h3>
-        <button class="toggle-btn" data-target="fdi" onclick="toggleLayer(this)">
-            <span>[+] Inversión Extranjera Directa</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="tech" onclick="toggleLayer(this)">
-            <span>[+] Zonas Francas Tecnológicas</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="res" onclick="toggleLayer(this)">
-            <span>[+] Nodos de Recursos Estratégicos</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="tav" onclick="toggleLayer(this)">
-            <span>[+] Red TAV (Trenes Alta Velocidad)</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="defensa" onclick="toggleLayer(this)">
-            <span>[+] Complejos Aeroespaciales</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="strategic" onclick="toggleLayer(this)">
-            <span>[+] Recursos Estratégicos Globales</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="infra" onclick="toggleLayer(this)">
-            <span>[+] Infraestructura y Comercio</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="flows" onclick="toggleLayer(this)">
-            <span>[+] Flujos Económicos</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="bonus" onclick="toggleLayer(this)">
-            <span>[+] Zonas Especiales / Conflictos</span>
-            <div class="indicator"></div>
-        </button>
-        <button class="toggle-btn" data-target="inequality" onclick="toggleInequality(this)">
-            <span>[+] Desigualdad Económica (Nivel)</span>
-            <div class="indicator"></div>
-        </button>
-
-        <div class="legend-box">
-            <div style="color: var(--cyan); margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">
-                Simbología</div>
-            <div class="legend-item">
-                <div class="legend-color lc-capital"></div> Capitales Regionales (24 Ex-Países)
-            </div>
-            <div class="legend-item">
-                <div class="legend-color lc-key"></div> Centros Globales / Nodos Clave
-            </div>
-            <div class="legend-item">
-                <div class="legend-color lc-fdi"></div> Inversión Extranjera / Megaproyectos
-            </div>
-            <div class="legend-item">
-                <div class="legend-color lc-tech"></div> Polos Tecnológicos / I+D
-            </div>
-            <div class="legend-item">
-                <div class="legend-color lc-res"></div> Complejos Extractivos
-            </div>
-            <div class="legend-item">
-                <div class="legend-color lc-defensa"></div> Aeroespacial y Defensa
-            </div>
-            <div class="legend-item">
-                <div class="legend-color lc-tav"></div> Línea TAV (Logística Terrestre)
-            </div>
-            <div class="legend-item" style="margin-top: 10px; border-top: 1px solid rgba(0, 229, 255, 0.2); padding-top: 10px;">
-                <div class="legend-color lc-inequality"></div> Desarrollo: Verde (Alto), Amarillo (Medio), Rojo (Bajo)
-            </div>
-        </div>
-
-        <h3>Macro-Regiones</h3>
-        <details>
-            <summary>El Caribe</summary>
-            <div id="list-caribe"></div>
-        </details>
-        <details>
-            <summary>América del Norte y Central</summary>
-            <div id="list-nortecentro"></div>
-        </details>
-        <details open>
-            <summary>América del Sur</summary>
-            <div id="list-sur"></div>
-        </details>
-
-        <h3>Simulación de Políticas</h3>
-        <div class="slider-wrapper">
-            <div class="slider-label"><span>Integración de Mercado</span><span id="lbl-integration">50%</span></div>
-            <input type="range" id="slider-integration" min="0" max="100" value="50" oninput="updateSim()">
-        </div>
-        <div class="slider-wrapper">
-            <div class="slider-label"><span>Inversión I+D (STEM)</span><span id="lbl-rd">5.0%</span></div>
-            <input type="range" id="slider-rd" min="1" max="15" value="5" step="0.1" oninput="updateSim()">
-        </div>
+            <h3>REGIONES</h3>
+            <details>
+                <summary style="cursor:pointer; font-size:10px; color:#e0e8f0;">▸ EL CARIBE</summary>
+                <div id="list-caribe" style="padding-left:10px; margin-top:5px;"></div>
+            </details>
+            <details>
+                <summary style="cursor:pointer; font-size:10px; color:#e0e8f0; margin-top:8px;">▸ CENTRO-NORTE</summary>
+                <div id="list-centronorte" style="padding-left:10px; margin-top:5px;"></div>
+            </details>
+            <details>
+                <summary style="cursor:pointer; font-size:10px; color:#e0e8f0; margin-top:8px;">▸ SUDAMÉRICA</summary>
+                <div id="list-sudamerica" style="padding-left:10px; margin-top:5px;"></div>
+            </details>
     </div>
 
-    <!-- PANEL CENTRAL: MAPA INTERACTIVO -->
-    <div class="col-center">
-        <svg id="map-svg"></svg>
+    <div id="map-container">
+        <div id="tooltip"></div>
+        <svg id="map" width="100%" height="100%"></svg>
     </div>
 
-    <!-- PANEL DERECHO: MÉTRICAS DE LA UNIÓN -->
-    <div class="col-side col-right">
-        <h2>Métricas de la Unión</h2>
+    <script>
+        const LATAM = {
+            484: { name: 'México', region: 'centronorte', capital: 'Ciudad de México', pop: '132M', lat: 19.43, lon: -99.13, pibBruto: '1,920B USD (2025 - INEGI)', pibCapita: '10,500 USD (2025 - INEGI)', inflacion: '3.69% (2025 - INPC)', desempleo: '2.4% (2025 - ENOE)', industria: 'Automotriz, manufacturera', estado: '✅ VALIDADO' },
+            192: { name: 'Cuba', region: 'caribe', capital: 'La Habana', pop: '9.74M', lat: 23.13, lon: -82.38, pibBruto: '75B USD (2025 - CEPAL)', pibCapita: '7,700 USD (2025 - CEPAL)', inflacion: '12.5% (2025 - Est.)', desempleo: '1.8% (2025 - Est.)', industria: 'Azúcar, níquel, turismo', estado: '✅ PROYECTADO' },
+            388: { name: 'Jamaica', region: 'caribe', capital: 'Kingston', pop: '2.83M', lat: 17.99, lon: -76.79, pibBruto: '22.5B USD (2025 - BOJ)', pibCapita: '8,200 USD (2025)', inflacion: '4.2% (2025)', desempleo: '3.2% (2025)', industria: 'Turismo, bauxita, agricultura', estado: '✅ VALIDADO' },
+            332: { name: 'Haití', region: 'caribe', capital: 'Puerto Príncipe', pop: '12M', lat: 18.54, lon: -72.34, pibBruto: '27B USD (2025 - BM)', pibCapita: '1,250 USD (2025)', inflacion: '20.5% (2025)', desempleo: '14.5% (2025)', industria: 'Agricultura, textiles, remesas', estado: '✅ PROYECTADO' },
+            214: { name: 'Rep. Dominicana', region: 'caribe', capital: 'Santo Domingo', pop: '11.5M', lat: 18.48, lon: -69.90, pibBruto: '128B USD (2025 - BCRD)', pibCapita: '11,100 USD (2025)', inflacion: '4.0% (2025)', desempleo: '6.0% (2025)', industria: 'Turismo, zonas francas, minería', estado: '✅ VALIDADO' },
+            630: { name: 'Puerto Rico', region: 'caribe', capital: 'San Juan', pop: '3.2M', lat: 18.47, lon: -66.11, pibBruto: '122B USD (2025 - BEA)', pibCapita: '38,100 USD (2025)', inflacion: '2.3% (2025)', desempleo: '5.2% (2025)', industria: 'Farmacéutica, manufactura, servicios', estado: '✅ VALIDADO' },
+            28: { name: 'Antigua y Barbuda', region: 'caribe', capital: "Saint John's", pop: '106K', lat: 17.12, lon: -61.85, pibBruto: '2.4B USD (2025 - ECCB)', pibCapita: '22,600 USD (2025)', inflacion: '2.0% (2025)', desempleo: '4.3% (2025)', industria: 'Servicios financieros, turismo', estado: '✅ VALIDADO' },
+            320: { name: 'Guatemala', region: 'centronorte', capital: 'Ciudad de Guatemala', pop: '18.9M', lat: 14.64, lon: -90.51, pibBruto: '108B USD (2025 - BANGUAT)', pibCapita: '5,700 USD (2025)', inflacion: '3.2% (2025)', desempleo: '2.7% (2025)', industria: 'Café, azúcar, textiles', estado: '✅ VALIDADO' },
+            84: { name: 'Belice', region: 'centronorte', capital: 'Belmopán', pop: '428K', lat: 17.25, lon: -88.77, pibBruto: '3.4B USD (2025 - BCB)', pibCapita: '7,900 USD (2025)', inflacion: '3.5% (2025)', desempleo: '3.8% (2025)', industria: 'Turismo, azúcar, pesca', estado: '✅ VALIDADO' },
+            340: { name: 'Honduras', region: 'centronorte', capital: 'Tegucigalpa', pop: '11.1M', lat: 14.10, lon: -87.21, pibBruto: '33.5B USD (2025 - BCH)', pibCapita: '3,020 USD (2025)', inflacion: '4.8% (2025)', desempleo: '6.3% (2025)', industria: 'Banano, café, maquila', estado: '✅ VALIDADO' },
+            222: { name: 'El Salvador', region: 'centronorte', capital: 'San Salvador', pop: '6.4M', lat: 13.69, lon: -89.22, pibBruto: '37.8B USD (2025 - BCR)', pibCapita: '5,900 USD (2025)', inflacion: '1.5% (2025)', desempleo: '5.5% (2025)', industria: 'Remesas, alimentos, energía', estado: '✅ VALIDADO' },
+            558: { name: 'Nicaragua', region: 'centronorte', capital: 'Managua', pop: '7.1M', lat: 12.13, lon: -86.29, pibBruto: '17.2B USD (2025 - BCN)', pibCapita: '2,420 USD (2025)', inflacion: '4.5% (2025)', desempleo: '4.0% (2025)', industria: 'Oro, carne, café', estado: '✅ PROYECTADO' },
+            188: { name: 'Costa Rica', region: 'centronorte', capital: 'San José', pop: '5.32M', lat: 9.93, lon: -84.08, pibBruto: '96B USD (2025 - BCCR)', pibCapita: '18,050 USD (2025)', inflacion: '1.8% (2025)', desempleo: '9.8% (2025)', industria: 'Dispositivos médicos, servicios', estado: '✅ VALIDADO' },
+            591: { name: 'Panamá', region: 'centronorte', capital: 'Ciudad de Panamá', pop: '4.6M', lat: 8.99, lon: -79.52, pibBruto: '88B USD (2025 - SBP)', pibCapita: '19,100 USD (2025)', inflacion: '1.0% (2025)', desempleo: '6.8% (2025)', industria: 'Logística, Canal, banca', estado: '✅ VALIDADO' },
+            170: { name: 'Colombia', region: 'sudamerica', capital: 'Bogotá', pop: '53.8M', lat: 4.71, lon: -74.07, pibBruto: '385B USD (2025 - DANE)', pibCapita: '7,160 USD (2025 - BanRep)', inflacion: '6.5% (2025)', desempleo: '10.0% (2025)', industria: 'Petróleo, café, flores', estado: '✅ VALIDADO' },
+            862: { name: 'Venezuela', region: 'sudamerica', capital: 'Caracas', pop: '28.6M', lat: 10.48, lon: -66.88, pibBruto: '110B USD (2025 - FMI)', pibCapita: '3,850 USD (2025 - Est.)', inflacion: '35% (2025)', desempleo: '7.0% (2025)', industria: 'Petróleo, gas, oro', estado: '⚠️ ESTIMADO' },
+            218: { name: 'Ecuador', region: 'sudamerica', capital: 'Quito', pop: '18.4M', lat: -0.22, lon: -78.51, pibBruto: '125B USD (2025 - BCE)', pibCapita: '6,800 USD (2025)', inflacion: '2.0% (2025)', desempleo: '4.0% (2025)', industria: 'Petróleo, banano, camarón', estado: '✅ VALIDADO' },
+            604: { name: 'Perú', region: 'sudamerica', capital: 'Lima', pop: '34M', lat: -12.05, lon: -77.04, pibBruto: '285B USD (2025 - BCRP)', pibCapita: '8,380 USD (2025 - INEI)', inflacion: '2.7% (2025)', desempleo: '6.5% (2025)', industria: 'Minería, pesca, agro', estado: '✅ VALIDADO' },
+            68: { name: 'Bolivia', region: 'sudamerica', capital: 'Sucre', pop: '11.3M', lat: -19.04, lon: -65.26, pibBruto: '51B USD (2025 - INE)', pibCapita: '4,520 USD (2025 - BCB)', inflacion: '3.5% (2025)', desempleo: '4.0% (2025)', industria: 'Gas, litio, soya', estado: '✅ VALIDADO' },
+            76: { name: 'Brasil', region: 'sudamerica', capital: 'Brasilia', pop: '213M', lat: -15.78, lon: -47.93, pibBruto: '2,450B USD (2025 - IBGE)', pibCapita: '11,500 USD (2025 - BCB)', inflacion: '4.8% (2025)', desempleo: '6.5% (2025)', industria: 'Soya, hierro, aeronáutica', estado: '✅ VALIDADO' },
+            600: { name: 'Paraguay', region: 'sudamerica', capital: 'Asunción', pop: '7.1M', lat: -25.29, lon: -57.65, pibBruto: '48.5B USD (2025 - BCP)', pibCapita: '6,830 USD (2025)', inflacion: '3.5% (2025)', desempleo: '5.5% (2025)', industria: 'Energía hidroeléctrica, soya', estado: '✅ VALIDADO' },
+            152: { name: 'Chile', region: 'sudamerica', capital: 'Santiago', pop: '20M', lat: -33.45, lon: -70.67, pibBruto: '355B USD (2025 - CBC)', pibCapita: '17,750 USD (2025 - INE)', inflacion: '4.0% (2025)', desempleo: '8.2% (2025)', industria: 'Cobre, litio, fruta', estado: '✅ VALIDADO' },
+            32: { name: 'Argentina', region: 'sudamerica', capital: 'Buenos Aires', pop: '46M', lat: -34.61, lon: -58.38, pibBruto: '680B USD (2025 - INDEC)', pibCapita: '14,780 USD (2025 - BCRA)', inflacion: '90% (2025)', desempleo: '7.0% (2025)', industria: 'Granos, carne, software', estado: '✅ VALIDADO' },
+            858: { name: 'Uruguay', region: 'sudamerica', capital: 'Montevideo', pop: '3.5M', lat: -34.90, lon: -56.19, pibBruto: '89B USD (2025 - BCU)', pibCapita: '25,430 USD (2025 - INE)', inflacion: '5.5% (2025)', desempleo: '7.8% (2025)', industria: 'Software, carne, celulosa', estado: '✅ VALIDADO' }
+        };
 
-        <div class="system-info">
-            <span style="color: var(--cyan); text-transform: uppercase;">Modelo Económico</span><br>
-            <strong style="color: #fff; font-size: 13px;">Capitalismo Desarrollista de Estado</strong>
-            <div style="margin-top: 8px; color: var(--text-muted);">Inspirado en MITI y Chaebols. 40% de los
-                universitarios graduados en STEM.</div>
-            <span class="currency">⛭ EL SOLAR</span>
-            <div style="font-size: 9px; color: var(--text-muted);">Banco Central de la Unión (Sede: Panamá)</div>
-        </div>
+        const svg = d3.select("#map");
+        const tooltip = d3.select("#tooltip");
 
-        <div class="stat-grid">
-            <div class="stat-card">
-                <div class="stat-title">PIB TOTAL</div>
-                <div class="stat-value" id="val-gdp">$6.20T</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">PIB PER CÁPITA</div>
-                <div class="stat-value" id="val-pibcapita">$9,400</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">DESEMPLEO</div>
-                <div class="stat-value" id="val-unemp" style="color: var(--accent-orange);">4.5%</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-title">BALANZA COMERCIAL</div>
-                <div class="stat-value" style="color: var(--cyan);">+12% (Sup)</div>
-            </div>
-        </div>
+        const projection = d3.geoMercator()
+            .center([-70, -35])
+            .scale(330)
+            .translate([svg.node().parentNode.clientWidth / 2, 420]);
 
-        <div class="stat-card" style="margin-bottom: 20px;">
-            <div class="stat-title">ÍNDICE DE INFLUENCIA GLOBAL</div>
-            <div class="stat-value" id="val-influence" style="font-size: 24px; color: var(--neon-green);">68/100</div>
-        </div>
+        const path = d3.geoPath().projection(projection);
+        const g = svg.append("g");
 
-        <h3>Reservas Estratégicas</h3>
-        <div class="res-bar-container">
-            <div class="res-label"><span>Litio (Triángulo)</span><span>85% Control Global</span></div>
-            <div class="res-bg">
-                <div class="res-fill fill-li" style="width: 85%;"></div>
+        // FUNCIÓN PARA ACTUALIZAR CONTENIDO TOOLTIP
+        function updateTooltipContent(id) {
+            const info = LATAM[id];
+            if (!info) return;
+
+            tooltip.style("display", "block")
+                .style("left", "auto")
+                .style("top", "auto")
+                .style("right", "20px")
+                .style("bottom", "20px");
+
+            tooltip.html(`
+        <div style="border-bottom:1px solid #378add; margin-bottom:8px; padding-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+            <strong style="color:#e0e8f0; font-size:13px; letter-spacing:1px;">${info.name.toUpperCase()}</strong>
+            <span style="font-size:8px; color:#00e5b0; border:1px solid #00e5b0; padding:1px 4px; border-radius:2px; background: rgba(0,229,176,0.1);">${info.estado}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap: 5px; font-size:10px; min-width: 230px;">
+            <div style="display:flex; justify-content:space-between;">
+                <span style="color:#4a7fa5;">CAPITAL:</span> <span style="color:#00e5b0;">${info.capital}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+                <span style="color:#4a7fa5;">POBLACIÓN:</span> <span style="color:#e0e8f0;">${info.pop}</span>
+            </div>
+            <div style="height:1px; background:#1e2a38; margin:2px 0;"></div>
+            <div><span style="color:#4a7fa5;">PIB BRUTO:</span><br><span style="color:#ffcc00;">${info.pibBruto}</span></div>
+            <div><span style="color:#4a7fa5;">PIB PER CÁP.:</span><br><span style="color:#ffcc00;">${info.pibCapita}</span></div>
+            <div><span style="color:#4a7fa5;">INFLACIÓN:</span><br><span style="color:#ff5555;">${info.inflacion}</span></div>
+            <div><span style="color:#4a7fa5;">DESEMPLEO:</span><br><span style="color:#ffaa00;">${info.desempleo}</span></div>
+            <div style="margin-top:4px; border-top:1px dashed #1e2a38; padding-top:4px;">
+                <span style="color:#4a7fa5; font-size:9px;">COMP. INDUSTRIAL:</span><br>
+                <span style="color:#378add; font-style:italic; font-size:10px; line-height:1.2;">${info.industria}</span>
             </div>
         </div>
-        <div class="res-bar-container">
-            <div class="res-label"><span>Cobre</span><span>55% Control Global</span></div>
-            <div class="res-bg">
-                <div class="res-fill fill-cu" style="width: 55%;"></div>
-            </div>
-        </div>
-        <div class="res-bar-container">
-            <div class="res-label"><span>Petróleo (Presal/Orinoco)</span><span>30% Control Global</span></div>
-            <div class="res-bg">
-                <div class="res-fill fill-oil" style="width: 30%;"></div>
-            </div>
-        </div>
-        <div class="res-bar-container">
-            <div class="res-label"><span>Biodiversidad & Agua</span><span>60% Control Global</span></div>
-            <div class="res-bg">
-                <div class="res-fill fill-bio" style="width: 60%;"></div>
-            </div>
-        </div>
-    </div>
+    `);
+        }
 
-    <!-- Tooltip global -->
-    <div id="tooltip"></div>
+        // CARGAR MAPA
+        d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(data => {
+            const countries = topojson.feature(data, data.objects.countries);
 
-    <!-- BASE DE DATOS EXTERNA -->
-    <script src="data.js"></script>
+            g.selectAll("path")
+                .data(countries.features)
+                .enter().append("path")
+                .attr("d", path)
+                .attr("class", "country")
+                .attr("fill", d => LATAM[Number(d.id)] ? "#16212e" : "#080d12")
+                .style("pointer-events", d => LATAM[Number(d.id)] ? "auto" : "none")
+                .attr("id", d => LATAM[Number(d.id)] ? "country-" + Number(d.id) : null)
+                .on("mouseover", function (e, d) {
+                    if (selectedCountryId !== Number(d.id)) {
+                        d3.select(this).attr("fill", "#2a4a6b");
+                    }
+                    updateTooltipContent(Number(d.id));
+                })
+                .on("mouseout", function (e, d) {
+                    if (selectedCountryId !== Number(d.id)) {
+                        d3.select(this).attr("fill", "#16212e");
+                    }
+                    if (selectedCountryId) {
+                        updateTooltipContent(selectedCountryId);
+                    } else {
+                        tooltip.style("display", "none");
+                    }
+                })
+                .on("click", function (e, d) {
+                    if (LATAM[Number(d.id)]) {
+                        selectCountry(Number(d.id));
+                    }
+                });
 
-    <!-- SCRIPT PRINCIPAL -->
-    <script src="main.js"></script>
+            // Puntos de Capitales
+            g.selectAll("circle")
+                .data(Object.entries(LATAM))
+                .enter().append("circle")
+                .attr("cx", d => projection([d[1].lon, d[1].lat])[0])
+                .attr("cy", d => projection([d[1].lon, d[1].lat])[1])
+                .attr("r", 3)
+                .attr("fill", "#00e5b0")
+                .attr("class", "capital-dot");
+
+            renderSidebarLists();
+        });
+
+        // FUNCIONES SIDEBAR
+        function renderSidebarLists() {
+            const regions = { caribe: "list-caribe", centronorte: "list-centronorte", sudamerica: "list-sudamerica" };
+
+            Object.keys(regions).forEach(regKey => {
+                const container = document.getElementById(regions[regKey]);
+                const filtered = Object.entries(LATAM).filter(c => c[1].region === regKey);
+
+                container.innerHTML = filtered.map(([id, c]) => `
+            <div class="layer-item" onclick="selectCountry(${id})" style="cursor:pointer; font-size:10px;">
+                <span style="color:#378add; margin-right:8px;">[●]</span> ${c.name}
+            </div>
+        `).join('');
+            });
+        }
+
+        function selectCountry(id) {
+            selectedCountryId = id;
+            // Resaltar en mapa
+            d3.selectAll(".country").attr("fill", d => {
+                if (!LATAM[Number(d.id)]) return "#080d12";
+                return Number(d.id) === id ? "#378add" : "#16212e";
+            });
+
+            // Mostrar Tooltip Anclado
+            updateTooltipContent(id);
+        }
+    </script>
 </body>
 
 </html>
